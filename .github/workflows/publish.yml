@@ -1,0 +1,51 @@
+name: publish
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-publish:
+    name: Building and publishing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Task
+        run: |
+          curl -sL "https://github.com/go-task/task/releases/download/v3.9.0/task_linux_amd64.tar.gz" | tar xz -C /tmp
+          sudo mv /tmp/task /usr/local/bin
+      - name: Setup Node
+        uses: actions/setup-node@v3
+      - name: build server docker image
+        run: |
+          task docker-build
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+        with:
+          images: ghcr.io/${{ github.repository }}
+      - name: push to github packages
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: .
+          tags: ${{ steps./meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Deploy to DigitalOcean
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd app
+            docker compose down
+            cat gh_token | docker login ghcr.io -u sonac --password-stdin
+            docker pull ghcr.io/sonac/stravach:master
+            docker compose up -d
