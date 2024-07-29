@@ -1,6 +1,7 @@
 package strava
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -34,13 +35,18 @@ type AthleteInfo struct {
 	Id       int64  `json:"id"`
 }
 
+type UpdatableActivity struct {
+	Name string `json:"name"`
+}
+
 type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
 const (
-	authUrl       = "https://www.strava.com/oauth/token"
-	activitiesUrl = "https://www.strava.com/api/v3/athlete/activities"
+	authUrl              = "https://www.strava.com/oauth/token"
+	athleteActivitiesUrl = "https://www.strava.com/api/v3/athlete/activities"
+	activityUrl          = "https://www.strava.com/api/v3/activities"
 )
 
 var Handler HTTPClient
@@ -105,12 +111,45 @@ func GetAllActivities(accessToken string) (*[]models.UserActivity, error) {
 		}
 		totalActivities = append(totalActivities, curActivities...)
 		curPage++
+		break
 	}
 	return &totalActivities, nil
 }
 
+func UpdateActivity(accessToken string, activity models.UserActivity) (*models.UserActivity, error) {
+	url := fmt.Sprintf("%s/%d", activityUrl, activity.ID)
+	updActivity := UpdatableActivity{Name: activity.Name}
+	body, err := json.Marshal(updActivity)
+	if err != nil {
+		slog.Error("error while marshalling activity")
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := Handler.Do(req)
+	if err != nil {
+		slog.Error("error occured during request creation")
+		return nil, err
+	}
+
+	var updatedActivity models.UserActivity
+	err = json.NewDecoder(resp.Body).Decode(&updatedActivity)
+	if err != nil {
+		slog.Error("error occured during response decode handling")
+		return nil, err
+	}
+	return &activity, nil
+}
+
 func getActivities(accessToken string, page int) ([]models.UserActivity, error) {
-	url := fmt.Sprintf("%s?page=%d", activitiesUrl, page)
+	url := fmt.Sprintf("%s?page=%d", athleteActivitiesUrl, page)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		slog.Error("error occured during request creation")
@@ -123,6 +162,7 @@ func getActivities(accessToken string, page int) ([]models.UserActivity, error) 
 		slog.Error("error occured during request handling")
 		return nil, err
 	}
+	// utils.DebugResponse(resp)
 	err = json.NewDecoder(resp.Body).Decode(&activities)
 	if err != nil {
 		slog.Error("error occured during response decode handling")

@@ -1,2 +1,4 @@
 .env
 stravach.db
+db.sqlite
+.vscode
