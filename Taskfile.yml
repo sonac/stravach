@@ -1,0 +1,11 @@
+version: "3"
+
+tasks:
+  build:
+    cmds:
+      - go build app/main.go
+
+  docker-build:
+    deps: [build]
+    cmds:
+      - docker build -t ghcr.io/sonac/stravach/stravach:latest .

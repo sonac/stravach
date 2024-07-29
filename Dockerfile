@@ -8,9 +8,9 @@ RUN go mod download
 RUN CGO_ENABLED=0 go build -a -installsuffix cgo -o stravach ./app/main.go
 
 FROM alpine:latest
-RUN apk --no-cache add ca-certificate
+RUN apk --no-cache add ca-certificates
 WORKDIR /root/
-COPY --from=builder /app/stravach
+COPY --from=builder /app/stravach .
 
 EXPOSE 8888
 
