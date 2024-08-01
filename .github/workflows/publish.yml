@@ -45,7 +45,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd app
+            cd apps
             docker compose down
             cat gh_token | docker login ghcr.io -u sonac --password-stdin
             docker pull ghcr.io/sonac/stravach:master
