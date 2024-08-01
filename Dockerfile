@@ -9,8 +9,8 @@ RUN go mod download
 RUN go build -o stravach ./app/main.go
 
 # Stage 2: Create a minimal image with the built Go binary
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates libc6-compat
+FROM debian:bullseye-slim
+RUN apt-get update && apt-get install -y ca-certificates
 
 WORKDIR /root/
 COPY --from=builder /app/stravach .
