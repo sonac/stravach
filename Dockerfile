@@ -1,14 +1,17 @@
+# Stage 1: Build the Go application
 FROM golang:1.22 as builder
 
-ENV GO11MODULE=on
+ENV GO111MODULE=on
 
 WORKDIR /app
 COPY . .
 RUN go mod download
-RUN CGO_ENABLED=0 go build -a -installsuffix cgo -o stravach ./app/main.go
+RUN go build -o stravach ./app/main.go
 
+# Stage 2: Create a minimal image with the built Go binary
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates libc6-compat
+
 WORKDIR /root/
 COPY --from=builder /app/stravach .
 
