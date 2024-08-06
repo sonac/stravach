@@ -4,14 +4,8 @@ ENV GO11MODULE=on
 
 WORKDIR /app
 COPY . .
-RUN go mod download
-RUN CGO_ENABLED=0 go build -a -installsuffix cgo -o stravach ./app/main.go
-
-FROM alpine:latest
-RUN apk --no-cache add ca-certificate
-WORKDIR /root/
-COPY --from=builder /app/stravach
+RUN go build -o stravach ./app/main.go
 
 EXPOSE 8888
 
-CMD ["./stravach"]
+ENTRYPOINT ["./stravach"]

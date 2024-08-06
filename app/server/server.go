@@ -231,12 +231,24 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 	h.ActivitiesChannel <- afu
 }
 
+func (h *HttpHandler) webhook(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.webhookVerify(w, r)
+	case http.MethodPost:
+		h.webhookActivity(w, r)
+	default:
+		slog.Error("method is not supported")
+	}
+}
+
 func (h *HttpHandler) Start() {
 	http.HandleFunc("/", h.homeHandler)
 	http.HandleFunc("/auth/", h.authHandler)
 	http.HandleFunc("/auth-callback/", h.authCallbackHandler)
 	http.HandleFunc("/activities/", h.getActivities)
 	http.HandleFunc("/activity", h.updateActivity)
+	http.HandleFunc("/webhook", h.webhook)
 
 	slog.Info("Starting server on port " + h.Port)
 	err := http.ListenAndServe(":"+h.Port, nil)
