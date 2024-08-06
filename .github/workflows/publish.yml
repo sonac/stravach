@@ -8,14 +8,15 @@ jobs:
   build-and-publish:
     name: Building and publishing
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v2
       - name: Install Task
         run: |
           curl -sL "https://github.com/go-task/task/releases/download/v3.9.0/task_linux_amd64.tar.gz" | tar xz -C /tmp
           sudo mv /tmp/task /usr/local/bin
-      - name: Setup Node
-        uses: actions/setup-node@v3
       - name: build server docker image
         run: |
           task docker-build
@@ -44,7 +45,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd app
+            cd apps
             docker compose down
             cat gh_token | docker login ghcr.io -u sonac --password-stdin
             docker pull ghcr.io/sonac/stravach:master

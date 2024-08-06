@@ -1,6 +1,5 @@
+# Stage 1: Build the Go application
 FROM golang:1.22 as builder
-
-ENV GO11MODULE=on
 
 WORKDIR /app
 COPY . .
