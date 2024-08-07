@@ -14,7 +14,7 @@ type SQLiteStore struct {
 }
 
 func (s *SQLiteStore) Connect() error {
-	db, err := sql.Open("sqlite3", "stravach.db")
+	db, err := sql.Open("sqlite3", "db/stravach.db")
 	if err != nil {
 		slog.Error("cannot open sqlite file")
 		return err
@@ -24,8 +24,7 @@ func (s *SQLiteStore) Connect() error {
 }
 
 func (s *SQLiteStore) createTables() error {
-	/*
-			userTable := `
+	userTable := `
 		    CREATE TABLE IF NOT EXISTS users (
 		      id INTEGER PRIMARY KEY AUTOINCREMENT,
 		      strava_id INTEGER NOT NULL,
@@ -38,7 +37,6 @@ func (s *SQLiteStore) createTables() error {
 		      token_expires_at INTEGER
 		    );
 		  `
-	*/
 	userActivityTable := `
     CREATE TABLE IF NOT EXISTS user_activities (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,13 +53,12 @@ func (s *SQLiteStore) createTables() error {
     );
   `
 
-	/*
-		_, err := s.DB.Exec(userTable)
-		if err != nil {
-			return err
-		}
-	*/
-	_, err := s.DB.Exec(userActivityTable)
+	_, err := s.DB.Exec(userTable)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.DB.Exec(userActivityTable)
 	if err != nil {
 		return err
 	}
