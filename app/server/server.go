@@ -218,7 +218,14 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.DB.CreateUserActivity(activity, wBody.OwnerId)
+	dbUsr, err := h.DB.GetUserByStravaId(wBody.OwnerId)
+	if err != nil {
+		slog.Error("error when fetching user from DB", "err", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = h.DB.CreateUserActivity(activity, dbUsr.ID)
 	if err != nil {
 		slog.Error("error while adding activity", "err", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
