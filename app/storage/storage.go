@@ -182,7 +182,7 @@ func (s *SQLiteStore) CreateUser(user *models.User) error {
 }
 
 func (s *SQLiteStore) CreateUserActivity(activity *models.UserActivity, userId int64) error {
-	query := `INSERT INTO user_activities (id, name, user_id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO user_activities (id, name, user_id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	result, err := s.DB.Exec(query, activity.ID, activity.Name, userId, activity.Distance, activity.MovingTime, activity.ElapsedTime, activity.ActivityType, activity.StartDate, activity.AverageHeartrate, activity.AverageSpeed)
 	if err != nil {
 		return err
