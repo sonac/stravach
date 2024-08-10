@@ -3,3 +3,7 @@ stravach.db
 db.sqlite
 .vscode
 main
+.stravach_env
+stravadb
+stravach
+docker-compose.yml

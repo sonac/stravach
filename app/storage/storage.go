@@ -14,7 +14,7 @@ type SQLiteStore struct {
 }
 
 func (s *SQLiteStore) Connect() error {
-	db, err := sql.Open("sqlite3", "db/stravach.db")
+	db, err := sql.Open("sqlite3", "stravach.db")
 	if err != nil {
 		slog.Error("cannot open sqlite file")
 		return err
