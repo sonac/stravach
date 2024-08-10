@@ -218,10 +218,21 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.DB.CreateUserActivity(activity, wBody.OwnerId)
-	h.DB.UpdateUser(usr)
+	err = h.DB.CreateUserActivity(activity, wBody.OwnerId)
+	if err != nil {
+		slog.Error("error while adding activity", "err", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
-	slog.Info("activity added for user" + usr.Username)
+	err = h.DB.UpdateUser(usr)
+	if err != nil {
+		slog.Error("error while updating user", "err", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("activity added for user" + usr.Username + " with id: " + strconv.FormatInt(activity.ID, 10))
 
 	afu := tg.ActivityForUpdate{
 		Activity: *activity,
