@@ -3,11 +3,13 @@ package strava
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"stravach/app/storage/models"
+	"stravach/app/utils"
 )
 
 type Client struct {
@@ -87,6 +89,11 @@ func GetActivity(accessToken string, activityId int64) (*models.UserActivity, er
 	if err != nil {
 		slog.Error("error occured during request handling")
 		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		slog.Error("got bad resp from strava", "status", resp.Status)
+		utils.DebugResponse(resp)
+		return nil, errors.New("bad response from strava")
 	}
 	err = json.NewDecoder(resp.Body).Decode(&activity)
 	if err != nil {

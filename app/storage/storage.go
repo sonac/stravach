@@ -27,8 +27,8 @@ func (s *SQLiteStore) createTables() error {
 	userTable := `
 		    CREATE TABLE IF NOT EXISTS users (
 		      id INTEGER PRIMARY KEY AUTOINCREMENT,
-		      strava_id INTEGER NOT NULL,
-		      telegram_chat_id INTEGER NOT NULL,
+		      strava_id INTEGER UNIQUE NOT NULL,
+		      telegram_chat_id INTEGER UNIQUE NOT NULL,
 		      username TEXT NOT NULL,
 		      email TEXT NOT NULL,
 		      strava_refresh_token TEXT,
@@ -173,6 +173,28 @@ func (s *SQLiteStore) CreateUserActivities(userId int64, activities *[]models.Us
 
 func (s *SQLiteStore) CreateUser(user *models.User) error {
 	query := `
+    INSERT INTO users (
+        strava_id, telegeram_chat_id, username, email, srtava_refresh_token, strava_access_token, strava_access_code, token_expires_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(strava_id) DO UPDATE SET
+        telegram_chat_id = excluded.telegram_chat_id,
+        username = excluded.username,
+        email = excluded.email,
+        strava_refresh_token = excluded.strava_refresh_token,
+        strava_access_token = excluded.strava_access_token,
+        strava_access_code = excluded.strava_access_code,
+        token_expires_at = excluded.token_expires_at,
+  `
+	result, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, user.Username, user.Email, user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt)
+	if err != nil {
+		return err
+	}
+	user.ID, err = result.LastInsertId()
+	return err
+}
+
+func (s *SQLiteStore) CreateUserActivity(activity *models.UserActivity, userId int64) error {
+	query := `
     INSERT INTO user_activities (
         id, name, user_id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -187,16 +209,6 @@ func (s *SQLiteStore) CreateUser(user *models.User) error {
         average_heartrate = excluded.average_heartrate,
         average_speed = excluded.average_speed
   `
-	result, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, user.Username, user.Email, user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt)
-	if err != nil {
-		return err
-	}
-	user.ID, err = result.LastInsertId()
-	return err
-}
-
-func (s *SQLiteStore) CreateUserActivity(activity *models.UserActivity, userId int64) error {
-	query := `INSERT INTO user_activities (id, name, user_id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	result, err := s.DB.Exec(query, activity.ID, activity.Name, userId, activity.Distance, activity.MovingTime, activity.ElapsedTime, activity.ActivityType, activity.StartDate, activity.AverageHeartrate, activity.AverageSpeed)
 	if err != nil {
 		return err
