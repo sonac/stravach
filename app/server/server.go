@@ -211,7 +211,7 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 		usr.StravaAccessToken = authData.AccessToken
 	}
 
-	fmt.Printf("%+v", wBody)
+	slog.Info("got webhookBody" + fmt.Sprintf("%+v", wBody))
 
 	activity, err := strava.GetActivity(usr.StravaAccessToken, wBody.ObjectId)
 	if err != nil {
@@ -220,7 +220,8 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("%+v", activity)
+	slog.Info("got webhookBody" + fmt.Sprintf("%+v", activity))
+
 	dbUsr, err := h.DB.GetUserByStravaId(wBody.OwnerId)
 	if err != nil {
 		slog.Error("error when fetching user from DB", "err", err.Error())
