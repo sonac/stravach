@@ -172,7 +172,21 @@ func (s *SQLiteStore) CreateUserActivities(userId int64, activities *[]models.Us
 }
 
 func (s *SQLiteStore) CreateUser(user *models.User) error {
-	query := `INSERT INTO users (strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `
+    INSERT INTO user_activities (
+        id, name, user_id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        user_id = excluded.user_id,
+        distance = excluded.distance,
+        moving_time = excluded.moving_time,
+        elapsed_time = excluded.elapsed_time,
+        type = excluded.type,
+        start_date = excluded.start_date,
+        average_heartrate = excluded.average_heartrate,
+        average_speed = excluded.average_speed
+  `
 	result, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, user.Username, user.Email, user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt)
 	if err != nil {
 		return err
