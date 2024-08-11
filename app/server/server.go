@@ -241,7 +241,7 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("activity added for user" + usr.Username + " with id: " + strconv.FormatInt(activity.ID, 10))
 
-	dbActivity, err := h.DB.GetUserByStravaId(activity.ID)
+	dbActivity, err := h.DB.GetActivityById(activity.ID)
 	if err != nil {
 		slog.Error("error when fetching activity from DB", "err", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
