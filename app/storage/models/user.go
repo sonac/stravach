@@ -35,4 +35,5 @@ type UserActivity struct {
 	StartDate        time.Time `json:"start_date"`
 	AverageHeartrate float64   `json:"average_heartrate"`
 	AverageSpeed     float64   `json:"average_speed"`
+	IsUpdated        bool      `json:"is_updated"`
 }
