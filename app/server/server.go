@@ -228,12 +228,8 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingActivity, err := h.DB.GetActivityById(activity.ID)
-	if err != nil {
-		slog.Error("error when fetching user from DB", "err", err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	existingActivity, _ := h.DB.GetActivityById(activity.ID)
+
 	if existingActivity != nil {
 		slog.Info("activity exists already, probably just got updated")
 	} else {
