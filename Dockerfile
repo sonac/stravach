@@ -31,9 +31,6 @@ WORKDIR /app
 # Copy the binary from the builder stage
 COPY --from=builder /app/stravach /app/stravach
 
-# Create a directory for the database
-RUN mkdir /db
-
 # Expose the required port
 EXPOSE 8888
 

@@ -82,7 +82,7 @@ func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models
 		slog.Error(err.Error())
 	}
 	if usr == nil {
-		usr = &dbModels.User{TelegramChatId: chatID}
+		usr = &dbModels.User{TelegramChatId: chatID, StravaId: 0}
 	}
 
 	err = tg.DB.CreateUser(usr)

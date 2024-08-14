@@ -183,18 +183,18 @@ func (s *SQLiteStore) CreateUserActivities(userId int64, activities *[]models.Us
 
 func (s *SQLiteStore) CreateUser(user *models.User) error {
 	query := `
-    INSERT INTO users (
-        strava_id, telegeram_chat_id, username, email, srtava_refresh_token, strava_access_token, strava_access_code, token_expires_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(strava_id) DO UPDATE SET
-        telegram_chat_id = excluded.telegram_chat_id,
-        username = excluded.username,
-        email = excluded.email,
-        strava_refresh_token = excluded.strava_refresh_token,
-        strava_access_token = excluded.strava_access_token,
-        strava_access_code = excluded.strava_access_code,
-        token_expires_at = excluded.token_expires_at,
-  `
+		INSERT INTO users (
+				strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(strava_id) DO UPDATE SET
+				telegram_chat_id = excluded.telegram_chat_id,
+				username = excluded.username,
+				email = excluded.email,
+				strava_refresh_token = excluded.strava_refresh_token,
+				strava_access_token = excluded.strava_access_token,
+				strava_access_code = excluded.strava_access_code,
+				token_expires_at = excluded.token_expires_at
+	`
 	result, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, user.Username, user.Email, user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt)
 	if err != nil {
 		slog.Error("error while creating user")
