@@ -77,6 +77,14 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	usr.StravaAccessCode = stravaAccessCode
+	authData, err := h.Strava.Authorize(usr.StravaAccessCode)
+	if err != nil {
+		slog.Error(err.Error())
+		return
+	}
+	usr.StravaAccessToken = authData.AccessToken
+	usr.StravaRefreshToken = authData.RefreshToken
+	usr.StravaId = authData.Athlete.Id
 	err = h.DB.UpdateUser(usr)
 	if err != nil {
 		slog.Error(fmt.Sprintf("error while updating user from chatId %s", err))
