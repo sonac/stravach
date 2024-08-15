@@ -180,6 +180,7 @@ func getActivities(accessToken string, page int) ([]models.UserActivity, error) 
 
 func (c *Client) auth(authPayload AuthReqBody) (*AuthResp, error) {
 	url := fmt.Sprintf("%s?client_id=%s&client_secret=%s&code=%s&refresh_token=%s&grant_type=%s", authUrl, authPayload.ClientId, authPayload.ClientSecret, authPayload.Code, authPayload.RefreshToken, authPayload.GrantType)
+	slog.Debug(url)
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		return nil, err
@@ -187,7 +188,11 @@ func (c *Client) auth(authPayload AuthReqBody) (*AuthResp, error) {
 	var authResp AuthResp
 	resp, err := Handler.Do(req)
 	if err != nil {
+		slog.Error("error while fetching auth request from strava")
 		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		utils.DebugResponse(resp)
 	}
 	err = json.NewDecoder(resp.Body).Decode(&authResp)
 	if err != nil {

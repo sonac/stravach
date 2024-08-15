@@ -74,7 +74,7 @@ func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity) ([]string, e
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("OpenAI API returned non 200: ", resp.Status)
+		return nil, fmt.Errorf("OpenAI API returned non 200: %s", resp.Status)
 	}
 
 	defer resp.Body.Close()

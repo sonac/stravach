@@ -79,7 +79,7 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 	usr.StravaAccessCode = stravaAccessCode
 	authData, err := h.Strava.Authorize(usr.StravaAccessCode)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.Error("error while authorizing new user", "err", err.Error())
 		return
 	}
 	usr.StravaAccessToken = authData.AccessToken
