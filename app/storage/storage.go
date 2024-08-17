@@ -208,7 +208,7 @@ func (s *SQLiteStore) CreateUserActivity(activity *models.UserActivity, userId i
 	query := `
     INSERT INTO user_activities (
         id, name, user_id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed, is_updated
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         user_id = excluded.user_id,
