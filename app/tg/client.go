@@ -83,12 +83,12 @@ func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models
 	}
 	if usr == nil {
 		usr = &dbModels.User{TelegramChatId: chatID, StravaId: 0}
+		err = tg.DB.CreateUser(usr)
+		if err != nil {
+			slog.Error(err.Error())
+		}
 	}
 
-	err = tg.DB.CreateUser(usr)
-	if err != nil {
-		slog.Error(err.Error())
-	}
 	link := fmt.Sprintf("%s/auth/%d", url, chatID)
 	escapedLink := bot.EscapeMarkdownUnescaped(link)
 	replyMsg := fmt.Sprintf("Please authorize yourself in Strava %s", escapedLink)
