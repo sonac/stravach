@@ -218,7 +218,7 @@ func (s *SQLiteStore) CreateUserActivity(activity *models.UserActivity, userId i
         type = excluded.type,
         start_date = excluded.start_date,
         average_heartrate = excluded.average_heartrate,
-        average_speed = excluded.average_speed
+        average_speed = excluded.average_speed,
         is_updated = excluded.is_updated
   `
 	result, err := s.DB.Exec(query, activity.ID, activity.Name, userId, activity.Distance, activity.MovingTime, activity.ElapsedTime, activity.ActivityType, activity.StartDate, activity.AverageHeartrate, activity.AverageSpeed, activity.IsUpdated)
