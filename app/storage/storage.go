@@ -231,6 +231,7 @@ func (s *SQLiteStore) CreateUserActivity(activity *models.UserActivity, userId i
 }
 
 func (s *SQLiteStore) UpdateUser(user *models.User) error {
+	slog.Debug("updating user", "usr", fmt.Sprintf("%+v", user))
 	query := `
     UPDATE users
     SET strava_id = ?, telegram_chat_id = ?, username = ?, email = ?,

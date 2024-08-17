@@ -32,8 +32,9 @@ func main() {
 
 func init() {
 	err := godotenv.Load()
-	if err != nil {
+	if err != nil && os.Getenv("ENV") != "PROD" {
 		slog.Error("error while initializing godotenv")
+		os.Exit(1)
 	}
 	srv = &server.HttpHandler{}
 	slog.SetLogLoggerLevel(slog.LevelDebug.Level())

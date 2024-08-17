@@ -131,6 +131,7 @@ func (tg *Telegram) refreshActivities(ctx context.Context, b *bot.Bot, update *m
 		}
 		updateAuthData(usr, *authData)
 	}
+	slog.Debug("updating user in refresh activities")
 	err = tg.DB.UpdateUser(usr)
 	if err != nil {
 		slog.Error(err.Error())
@@ -263,6 +264,7 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 		}
 		updateAuthData(usr, *authData)
 	}
+	slog.Debug("updating user in tg callback query")
 	err = tg.DB.UpdateUser(usr)
 	if err != nil {
 		slog.Error(err.Error())
