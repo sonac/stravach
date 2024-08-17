@@ -171,7 +171,7 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 
 	names, err := tg.AI.GenerateBetterNames(activity.Activity)
 	if err != nil {
-		slog.Error("error while generating names", err)
+		slog.Error("error while generating names", "err", err)
 		return
 	}
 
@@ -194,7 +194,7 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 
 	_, err = tg.Bot.SendMessage(context.Background(), msg)
 	if err != nil {
-		slog.Error("error while sending message", err)
+		slog.Error("error while sending message", "err", err)
 		return
 	}
 }

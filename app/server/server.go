@@ -222,42 +222,41 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if usr.AuthRequired() {
-		authData, err := h.Strava.RefreshAccessToken(usr.StravaRefreshToken)
-		if err != nil {
-			slog.Error(err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		usr.StravaAccessToken = authData.AccessToken
-		slog.Debug("updating user in webhook")
-		err = h.DB.UpdateUser(usr)
-		if err != nil {
-			slog.Error("error while updating user", "err", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	}
-
 	activity, _ := h.DB.GetActivityById(wBody.ObjectId)
 
 	if activity != nil {
 		slog.Info("activity exists already, probably just got updated")
 	} else {
-		activity, err := strava.GetActivity(usr.StravaAccessToken, wBody.ObjectId)
+		if usr.AuthRequired() {
+			authData, err := h.Strava.RefreshAccessToken(usr.StravaRefreshToken)
+			if err != nil {
+				slog.Error(err.Error())
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			usr.StravaAccessToken = authData.AccessToken
+		}
+
+		activity, err = strava.GetActivity(usr.StravaAccessToken, wBody.ObjectId)
 		if err != nil {
 			slog.Error(err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
 		err = h.DB.CreateUserActivity(activity, usr.ID)
 		if err != nil {
 			slog.Error("error while adding activity", "err", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		slog.Info("activity added for user" + usr.Username + " with id: " + strconv.FormatInt(activity.ID, 10))
+	}
+
+	slog.Debug("updating user in webhook")
+	err = h.DB.UpdateUser(usr)
+	if err != nil {
+		slog.Error("error while updating user", "err", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	fmt.Printf("%+v", activity)
