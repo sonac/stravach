@@ -28,8 +28,9 @@ RUN apk add --no-cache sqlite-libs
 # Set the working directory
 WORKDIR /app
 
-# Copy the binary from the builder stage
+# Copy the binary and templates from the builder stage
 COPY --from=builder /app/stravach /app/stravach
+COPY --from=builder /app/templates /app/templates
 
 # Expose the required port
 EXPOSE 8888

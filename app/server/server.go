@@ -3,9 +3,11 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"stravach/app/openai"
 	"stravach/app/storage"
 	"stravach/app/strava"
@@ -45,10 +47,17 @@ func (h *HttpHandler) Init() {
 }
 
 func (h *HttpHandler) homeHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, err := fmt.Fprintf(w, "Welcome!")
+	tmplPath := filepath.Join("templates", "index.html")
+	tmpl, err := template.ParseFiles(tmplPath)
 	if err != nil {
-		slog.Error("error during home response")
+		slog.Error("error parsing template", "err", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	err = tmpl.Execute(w, nil)
+	if err != nil {
+		slog.Error("error executing template", "err", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
@@ -61,6 +70,7 @@ func (h *HttpHandler) authHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	chatId, err := strconv.ParseInt(strings.Split(r.URL.Path, "/")[2], 10, 64)
+	stravaAccessCode := utils.GetCodeFromUrl(r.URL.RawQuery)
 	slog.Info(fmt.Sprintf("Updating info for user: %d", chatId))
 	if err != nil {
 		slog.Error("error while parsing chatId from URL: " + r.URL.Path)
@@ -68,7 +78,7 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 		fmt.Fprintf(w, "Error occured during callback")
 		return
 	}
-	stravaAccessCode := utils.GetCodeFromUrl(r.URL.RawQuery)
+
 	usr, err := h.DB.GetUserByChatId(chatId)
 	if err != nil {
 		slog.Error("error while getting user from chatId", err)
@@ -82,6 +92,7 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 		slog.Error("error while authorizing new user", "err", err.Error())
 		return
 	}
+
 	usr.StravaAccessToken = authData.AccessToken
 	usr.StravaRefreshToken = authData.RefreshToken
 	usr.StravaId = authData.Athlete.Id
@@ -251,17 +262,9 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("activity added for user" + usr.Username + " with id: " + strconv.FormatInt(activity.ID, 10))
-
-	dbActivity, err := h.DB.GetActivityById(activity.ID)
-	if err != nil {
-		slog.Error("error when fetching activity from DB", "err", err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if !dbActivity.IsUpdated {
+	if !existingActivity.IsUpdated {
 		afu := tg.ActivityForUpdate{
-			Activity: *dbActivity,
+			Activity: *existingActivity,
 			ChatId:   usr.TelegramChatId,
 		}
 
