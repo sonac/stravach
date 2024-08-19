@@ -9,3 +9,7 @@ tasks:
     deps: [build]
     cmds:
       - docker build -t ghcr.io/sonac/stravach/stravach:latest .
+  
+  test:
+    cmds:
+      - go test -v ./app/...
