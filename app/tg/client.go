@@ -255,14 +255,16 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 				slog.Error(err.Error())
 				return
 			}
+			updateAuthData(usr, *authData)
 		} else {
 			authData, err = tg.Strava.RefreshAccessToken(usr.StravaRefreshToken)
 			if err != nil {
 				slog.Error(err.Error())
 				return
 			}
+			usr.StravaRefreshToken = authData.RefreshToken
+			usr.TokenExpiresAt = &authData.ExpiresAt
 		}
-		updateAuthData(usr, *authData)
 	}
 	slog.Debug("updating user in tg callback query")
 	err = tg.DB.UpdateUser(usr)
@@ -273,14 +275,14 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 
 	activity, err := tg.DB.GetActivityById(activityID)
 	if err != nil {
-		slog.Error("error while fetching activity from DB", err)
+		slog.Error("error while fetching activity from DB", "err", err)
 		return
 	}
 
 	activity.Name = newName
 	_, err = strava.UpdateActivity(usr.StravaAccessToken, *activity)
 	if err != nil {
-		slog.Error("error while updating activity", err)
+		slog.Error("error while updating activity", "err", err)
 		return
 	}
 
