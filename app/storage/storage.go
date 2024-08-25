@@ -257,9 +257,10 @@ func (s *SQLiteStore) UpdateUserActivity(activity *models.UserActivity, userId i
         average_heartrate = ?,
         average_speed = ?,
         is_updated = ?
+    WHERE id = ?
   `
-	result, err := s.DB.Exec(query, activity.ID, activity.Name, userId, activity.Distance, activity.MovingTime,
-		activity.ElapsedTime, activity.ActivityType, activity.StartDate, activity.AverageHeartrate, activity.AverageSpeed, activity.IsUpdated)
+	result, err := s.DB.Exec(query, activity.Name, userId, activity.Distance, activity.MovingTime,
+		activity.ElapsedTime, activity.ActivityType, activity.StartDate, activity.AverageHeartrate, activity.AverageSpeed, activity.IsUpdated, activity.ID)
 	if err != nil {
 		slog.Error("error while updating user activity")
 		return err
