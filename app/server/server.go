@@ -260,6 +260,8 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 		slog.Info("activity added for user" + usr.Username + " with id: " + strconv.FormatInt(activity.ID, 10))
 	}
 
+	fmt.Printf("%+v", activity)
+
 	if activity != nil && !activity.IsUpdated {
 		afu := tg.ActivityForUpdate{
 			Activity: *activity,
