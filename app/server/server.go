@@ -119,7 +119,7 @@ func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	userActivities, err := h.DB.GetuserActivities(usr.ID)
+	userActivities, err := h.DB.GetUserActivities(usr.ID)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)

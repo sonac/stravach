@@ -105,7 +105,7 @@ func GetActivity(accessToken string, activityId int64) (*models.UserActivity, er
 
 func GetAllActivities(accessToken string) (*[]models.UserActivity, error) {
 	curPage := 1
-	totalActivities := []models.UserActivity{}
+	var totalActivities []models.UserActivity
 	for {
 		curActivities, err := getActivities(accessToken, curPage)
 		if err != nil {
@@ -159,20 +159,19 @@ func getActivities(accessToken string, page int) ([]models.UserActivity, error) 
 	url := fmt.Sprintf("%s?page=%d", athleteActivitiesUrl, page)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		slog.Error("error occured during request creation")
+		slog.Error("error occurred during request creation")
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	var activities []models.UserActivity
 	resp, err := Handler.Do(req)
 	if err != nil {
-		slog.Error("error occured during request handling")
+		slog.Error("error occurred during request handling")
 		return nil, err
 	}
-	// utils.DebugResponse(resp)
 	err = json.NewDecoder(resp.Body).Decode(&activities)
 	if err != nil {
-		slog.Error("error occured during response decode handling")
+		slog.Error("error occurred during response decode handling")
 		return nil, err
 	}
 	return activities, nil
