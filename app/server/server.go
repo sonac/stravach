@@ -75,7 +75,7 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		slog.Error("error while parsing chatId from URL: " + r.URL.Path)
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Error occured during callback")
+		_, _ = fmt.Fprintf(w, "Error occured during callback")
 		return
 	}
 
@@ -83,7 +83,7 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		slog.Error("error while getting user from chatId", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Error occured during callback")
+		_, _ = fmt.Fprintf(w, "Error occured during callback")
 		return
 	}
 	usr.StravaAccessCode = stravaAccessCode
@@ -230,41 +230,39 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		usr.StravaAccessToken = authData.AccessToken
+		slog.Debug("updating user in webhook")
+		err = h.DB.UpdateUser(usr)
+		if err != nil {
+			slog.Error("error while updating user", "err", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
-	activity, err := strava.GetActivity(usr.StravaAccessToken, wBody.ObjectId)
-	if err != nil {
-		slog.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	activity, _ := h.DB.GetActivityById(wBody.ObjectId)
 
-	slog.Info("got webhookBody" + fmt.Sprintf("%+v", activity))
-
-	existingActivity, _ := h.DB.GetActivityById(activity.ID)
-
-	if existingActivity != nil {
+	if activity != nil {
 		slog.Info("activity exists already, probably just got updated")
 	} else {
+		activity, err := strava.GetActivity(usr.StravaAccessToken, wBody.ObjectId)
+		if err != nil {
+			slog.Error(err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		err = h.DB.CreateUserActivity(activity, usr.ID)
 		if err != nil {
 			slog.Error("error while adding activity", "err", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-	}
-	slog.Debug("updating user in webhook")
-	err = h.DB.UpdateUser(usr)
-	if err != nil {
-		slog.Error("error while updating user", "err", err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		slog.Info("activity added for user" + usr.Username + " with id: " + strconv.FormatInt(activity.ID, 10))
 	}
 
-	slog.Info("activity added for user" + usr.Username + " with id: " + strconv.FormatInt(activity.ID, 10))
-	if !existingActivity.IsUpdated {
+	if activity != nil && !activity.IsUpdated {
 		afu := tg.ActivityForUpdate{
-			Activity: *existingActivity,
+			Activity: *activity,
 			ChatId:   usr.TelegramChatId,
 		}
 
