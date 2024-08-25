@@ -101,15 +101,20 @@ func (s *SQLiteStore) GetUserByStravaId(id int64) (*models.User, error) {
 	return user, nil
 }
 
-func (s *SQLiteStore) GetuserActivities(userId int64) ([]models.UserActivity, error) {
-	activities := []models.UserActivity{}
+func (s *SQLiteStore) GetUserActivities(userId int64) ([]models.UserActivity, error) {
+	var activities []models.UserActivity
 	query := `SELECT id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed FROM user_activities WHERE user_id = ?`
 	rows, err := s.DB.Query(query, userId)
 	if err != nil {
 		slog.Error("error while fetching user activities", "id", userId)
 		return nil, err
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+
+		}
+	}(rows)
 	for rows.Next() {
 		var activity models.UserActivity
 		err := rows.Scan(&activity.ID, &activity.Distance, &activity.MovingTime, &activity.ElapsedTime, &activity.ActivityType, &activity.StartDate, &activity.AverageHeartrate, &activity.AverageSpeed)
@@ -126,33 +131,11 @@ func (s *SQLiteStore) GetActivityById(activityId int64) (*models.UserActivity, e
 	query := `SELECT id, user_id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed FROM user_activities WHERE id = ?`
 	err := s.DB.QueryRow(query, activityId).Scan(&activity.ID, &activity.UserID, &activity.Distance, &activity.MovingTime, &activity.ElapsedTime, &activity.ActivityType, &activity.StartDate, &activity.AverageHeartrate, &activity.AverageSpeed)
 	if err != nil {
-		slog.Error("error while fetching user activitiy", "id", activityId)
+		slog.Error("error while fetching user activity", "id", activityId)
 		return nil, err
 	}
 	return &activity, nil
 }
-
-/*
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      distance REAL,
-      moving_time INTEGER,
-      elapsed_time INTEGER,
-      type TEXT,
-      start_date DATETIME,
-      average_heartrate REAL,
-      average_speed REAL,
-      FOREIGN KEY(user_id) REFERENCES users(id)
-type UserActivity struct {
-	ID               int64     `json:"id,omitempty"`
-	Distance         float64   `json:"distance"`
-	MovingTime       int64     `json:"moving_time"`
-	ElapsedTime      int64     `json:"elapsed_time"`
-	ActivityType     string    `json:"type"`
-	StartDate        time.Time `json:"start_date"`
-	AverageHeartrate float64   `json:"average_heartrate"`
-	AverageSpeed     float64   `json:"average_speed"`
-}*/
 
 func (s *SQLiteStore) CreateUserActivities(userId int64, activities *[]models.UserActivity) error {
 	query := `

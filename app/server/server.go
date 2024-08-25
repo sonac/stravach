@@ -119,7 +119,7 @@ func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	userActivities, err := h.DB.GetuserActivities(usr.ID)
+	userActivities, err := h.DB.GetUserActivities(usr.ID)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
@@ -259,6 +259,8 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Info("activity added for user" + usr.Username + " with id: " + strconv.FormatInt(activity.ID, 10))
 	}
+
+	fmt.Printf("%+v", activity)
 
 	if activity != nil && !activity.IsUpdated {
 		afu := tg.ActivityForUpdate{

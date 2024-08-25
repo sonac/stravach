@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-type OpenAIRequest struct {
+type Request struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 }
@@ -21,7 +21,7 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-type OpenAIResponse struct {
+type Response struct {
 	Choices []struct {
 		Message Message `json:"message"`
 	} `json:"choices"`
@@ -39,7 +39,7 @@ func NewClient() *OpenAI {
 }
 
 func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity) ([]string, error) {
-	prompt := fmt.Sprintf("Generate a several, new-line separated witty name for the following activity: %s, %s, duration: %d seconds",
+	prompt := fmt.Sprintf("Generate a several, new-line separated ironic names for the following activity: %s, %s, duration: %d seconds",
 		activity.Name, activity.ActivityType, activity.ElapsedTime)
 	messages := []Message{
 		{
@@ -51,7 +51,7 @@ func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity) ([]string, e
 			Content: prompt,
 		},
 	}
-	requestBody, err := json.Marshal(OpenAIRequest{
+	requestBody, err := json.Marshal(Request{
 		Model:    "gpt-4o",
 		Messages: messages,
 	})
@@ -77,14 +77,19 @@ func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity) ([]string, e
 		return nil, fmt.Errorf("OpenAI API returned non 200: %s", resp.Status)
 	}
 
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+
+		}
+	}(resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, nil
 	}
 
-	var openAIResponse OpenAIResponse
+	var openAIResponse Response
 	err = json.Unmarshal(body, &openAIResponse)
 	if err != nil {
 		return nil, err
