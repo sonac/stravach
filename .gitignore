@@ -8,3 +8,4 @@ stravadb
 stravach
 docker-compose.yml
 .idea
+__debug*

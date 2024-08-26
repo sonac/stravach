@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"stravach/app/openai"
 	"stravach/app/storage"
+	"stravach/app/storage/models"
 	"stravach/app/strava"
 	"stravach/app/tg"
 	"stravach/app/utils"
@@ -21,8 +22,8 @@ type HttpHandler struct {
 	Url               string
 	Port              string
 	StravaToken       string
-	Strava            *strava.Client
-	DB                *storage.SQLiteStore
+	Strava            strava.Strava
+	DB                storage.Store
 	AI                *openai.OpenAI
 	ActivitiesChannel chan tg.ActivityForUpdate
 }
@@ -221,54 +222,7 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	activity, _ := h.DB.GetActivityById(wBody.ObjectId)
-
-	if activity != nil {
-		slog.Info("activity exists already, probably just got updated")
-	} else {
-		if usr.AuthRequired() {
-			authData, err := h.Strava.RefreshAccessToken(usr.StravaRefreshToken)
-			if err != nil {
-				slog.Error(err.Error())
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			usr.StravaAccessToken = authData.AccessToken
-		}
-
-		activity, err = strava.GetActivity(usr.StravaAccessToken, wBody.ObjectId)
-		if err != nil {
-			slog.Error(err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		err = h.DB.CreateUserActivity(activity, usr.ID)
-		if err != nil {
-			slog.Error("error while adding activity", "err", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	}
-
-	slog.Debug("updating user in webhook")
-	err = h.DB.UpdateUser(usr)
-	if err != nil {
-		slog.Error("error while updating user", "err", err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	fmt.Printf("%+v", activity)
-
-	if activity != nil && !activity.IsUpdated {
-		afu := tg.ActivityForUpdate{
-			Activity: *activity,
-			ChatId:   usr.TelegramChatId,
-		}
-
-		h.ActivitiesChannel <- afu
-	}
+	h.processActivity(wBody.ObjectId, usr)
 }
 
 func (h *HttpHandler) webhook(w http.ResponseWriter, r *http.Request) {
@@ -280,6 +234,56 @@ func (h *HttpHandler) webhook(w http.ResponseWriter, r *http.Request) {
 	default:
 		slog.Error("method is not supported")
 	}
+}
+
+func (h *HttpHandler) processActivity(activityId int64, user *models.User) error {
+	var activity *models.UserActivity
+	exists, err := h.DB.IsActivityExists(activityId)
+
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		slog.Info("activity exists already, probably just got updated")
+		activity, _ = h.DB.GetActivityById(activityId)
+	} else {
+		if user.AuthRequired() {
+			authData, err := h.Strava.RefreshAccessToken(user.StravaRefreshToken)
+			if err != nil {
+				return err
+			}
+			user.StravaAccessToken = authData.AccessToken
+		}
+
+		activity, err = h.Strava.GetActivity(user.StravaAccessToken, activityId)
+		if err != nil {
+			return err
+		}
+		err = h.DB.CreateUserActivity(activity, user.ID)
+		if err != nil {
+			return err
+		}
+	}
+
+	slog.Debug("updating user in webhook")
+	err = h.DB.UpdateUser(user)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%+v", activity)
+
+	if activity != nil && !activity.IsUpdated {
+		afu := tg.ActivityForUpdate{
+			Activity: *activity,
+			ChatId:   user.TelegramChatId,
+		}
+
+		h.ActivitiesChannel <- afu
+	}
+
+	return nil
 }
 
 func (h *HttpHandler) Start() {
