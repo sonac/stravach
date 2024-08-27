@@ -222,7 +222,10 @@ func (h *HttpHandler) webhookActivity(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	h.processActivity(wBody.ObjectId, usr)
+	err = h.processActivity(wBody.ObjectId, usr)
+	if err != nil {
+		slog.Error("error while processing activity", "err", err)
+	}
 }
 
 func (h *HttpHandler) webhook(w http.ResponseWriter, r *http.Request) {
