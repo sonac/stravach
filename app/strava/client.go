@@ -57,6 +57,14 @@ func init() {
 	Handler = &http.Client{}
 }
 
+type Strava interface {
+	Authorize(accessCode string) (*AuthResp, error)
+	RefreshAccessToken(refreshToken string) (*AuthResp, error)
+	GetActivity(accessToken string, activityId int64) (*models.UserActivity, error)
+}
+
+var _ Strava = (*Client)(nil)
+
 func NewStravaClient() *Client {
 	clientId := os.Getenv("STRAVA_CLIENT_ID")
 	clientSecret := os.Getenv("STRAVA_CLIENT_SECRET")
@@ -76,7 +84,7 @@ func (c *Client) RefreshAccessToken(refreshToken string) (*AuthResp, error) {
 	return c.auth(ap)
 }
 
-func GetActivity(accessToken string, activityId int64) (*models.UserActivity, error) {
+func (c *Client) GetActivity(accessToken string, activityId int64) (*models.UserActivity, error) {
 	url := fmt.Sprintf("https://www.strava.com/api/v3/activities/%d?include_all_efforts=", activityId)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
