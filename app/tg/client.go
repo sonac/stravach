@@ -77,12 +77,12 @@ func (tg *Telegram) Start(ctx context.Context) {
 func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	url := os.Getenv("URL")
 	chatID := update.Message.Chat.ID
-	usr, err := tg.DB.GetUserByChatId(chatID)
+	userExists, err := tg.DB.IsUserExistsByChatId(chatID)
 	if err != nil {
 		slog.Error(err.Error())
 	}
-	if usr == nil {
-		usr = &dbModels.User{TelegramChatId: chatID, StravaId: 0}
+	if !userExists {
+		usr := &dbModels.User{TelegramChatId: chatID, StravaId: 0}
 		err = tg.DB.CreateUser(usr)
 		if err != nil {
 			slog.Error(err.Error())

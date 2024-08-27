@@ -138,6 +138,17 @@ func (s *SQLiteStore) GetUserByStravaId(id int64) (*models.User, error) {
 	return user, nil
 }
 
+func (s *SQLiteStore) IsUserExistsByChatId(chatId int64) (bool, error) {
+	var exists bool
+	query := `SELECT COUNT(1) FROM users WHERE id = ?`
+	err := s.DB.QueryRow(query, chatId).Scan(&exists)
+	if err != nil {
+		slog.Error("error while checking if activity exists", "id", chatId)
+		return false, err
+	}
+	return exists, nil
+}
+
 func (s *SQLiteStore) UpdateUser(user *models.User) error {
 	slog.Debug("updating user", "usr", fmt.Sprintf("%+v", user))
 	query := `
