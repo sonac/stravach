@@ -287,7 +287,10 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 	}
 
 	activity.IsUpdated = true
-	err = tg.DB.UpdateUserActivity(activity, usr.ID)
+	err = tg.DB.UpdateUserActivity(activity)
+	if err != nil {
+		slog.Error("err", err)
+	}
 
 	res, err := tg.Bot.AnswerCallbackQuery(context.Background(), &bot.AnswerCallbackQueryParams{
 		CallbackQueryID: callbackQuery.ID,

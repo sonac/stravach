@@ -62,6 +62,38 @@ func (h *HttpHandler) homeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *HttpHandler) activitiesPageHandler(w http.ResponseWriter, r *http.Request) {
+	// Parse user ID from URL or session (assuming user ID is passed via URL)
+	userIDStr := strings.TrimPrefix(r.URL.Path, "/user/")
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		slog.Error("invalid user id", "error", err)
+		http.Error(w, "Invalid User ID", http.StatusBadRequest)
+		return
+	}
+
+	// Load the HTML template
+	tmplPath := filepath.Join("templates", "activities.html")
+	tmpl, err := template.ParseFiles(tmplPath)
+	if err != nil {
+		slog.Error("error parsing template", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Execute the template with user ID
+	data := struct {
+		UserID int64
+	}{
+		UserID: userID,
+	}
+	err = tmpl.Execute(w, data)
+	if err != nil {
+		slog.Error("error executing template", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
 func (h *HttpHandler) authHandler(w http.ResponseWriter, r *http.Request) {
 	chatId := strings.Split(r.URL.Path, "/")[2]
 	redirectUrl := fmt.Sprintf("https://www.strava.com/oauth/authorize?client_id=37166&response_type=code&"+
@@ -108,76 +140,97 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
-	chatId, err := strconv.ParseInt(strings.Split(r.URL.Path, "/")[2], 10, 64)
+	chatIdStr := strings.TrimPrefix(r.URL.Path, "/activities/")
+	chatId, err := strconv.ParseInt(chatIdStr, 10, 64)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
 	usr, err := h.DB.GetUserByChatId(chatId)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
 	userActivities, err := h.DB.GetUserActivities(usr.ID)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	jBytes, err := json.Marshal(userActivities)
-	if err != nil {
-		slog.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+
+	// Generate the HTML for the activities grid
+	var activitiesHTML strings.Builder
+	for _, activity := range userActivities {
+		activitiesHTML.WriteString(fmt.Sprintf(`
+        <div class="card">
+            <h3>%s</h3>
+            <p><strong>Distance:</strong> %.2f km</p>
+            <p><strong>Moving Time:</strong> %d mins</p>
+            <p><strong>Elapsed Time:</strong> %d mins</p>
+            <p><strong>Type:</strong> %s</p>
+            <p><strong>Start Date:</strong> %s</p>
+            <p><strong>Avg Heartrate:</strong> %.2f bpm</p>
+            <p><strong>Avg Speed:</strong> %.2f km/h</p>
+            <button hx-post="/activity/%d" hx-swap="none">Send to Channel</button>
+        </div>`,
+			activity.Name,
+			activity.Distance/1000,  // Convert to kilometers
+			activity.MovingTime/60,  // Convert to minutes
+			activity.ElapsedTime/60, // Convert to minutes
+			activity.ActivityType,
+			activity.StartDate.Format("2006-01-02 15:04:05"),
+			activity.AverageHeartrate,
+			activity.AverageSpeed*3.6, // Convert to km/h
+			activity.ID))
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jBytes)
+
+	// Write the generated HTML to the response
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(activitiesHTML.String()))
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *HttpHandler) updateActivity(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	slog.Debug("got updateActivity request")
+	activityIdStr := strings.TrimPrefix(r.URL.Path, "/activity/")
+	activityId, err := strconv.ParseInt(activityIdStr, 10, 64)
+	if err != nil {
+		slog.Error("invalid activity id", "error", err)
+		http.Error(w, "Invalid Activity ID", http.StatusBadRequest)
 		return
 	}
 
-	var req UpdateActivityRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
+	// Fetch the activity from the database by its ID
+	activity, err := h.DB.GetActivityById(activityId)
 	if err != nil {
-		slog.Error("failed to decode request body", "error", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	activity, err := h.DB.GetActivityById(int64(req.ID))
-	if err != nil {
-		slog.Error("failed to fetch activity", "error", err, "activityId", req.ID)
+		slog.Error("failed to fetch activity", "error", err)
 		http.Error(w, "Failed to fetch activity", http.StatusInternalServerError)
 		return
 	}
 
+	// Fetch the user associated with the activity
 	usr, err := h.DB.GetUserById(activity.UserID)
 	if err != nil || usr == nil {
 		slog.Error("error while getting user from DB", err)
 		http.Error(w, "Failed to fetch user", http.StatusInternalServerError)
 		return
 	}
-	switch req.UpdateType {
-	case "NAME":
-		afu := tg.ActivityForUpdate{
-			Activity: *activity,
-			ChatId:   usr.TelegramChatId,
-		}
-		h.ActivitiesChannel <- afu
-	default:
-		http.Error(w, "invalid update type", http.StatusBadRequest)
-		return
+
+	afu := tg.ActivityForUpdate{
+		Activity: *activity,
+		ChatId:   usr.TelegramChatId,
 	}
 
+	h.ActivitiesChannel <- afu
+	slog.Info("activity sent to channel", "activityId", activity.ID)
+
+	// Respond with a success message
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Activity updated successfully"))
+	w.Write([]byte("Activity sent to the channel successfully"))
 }
 
 func (h *HttpHandler) webhookVerify(w http.ResponseWriter, r *http.Request) {
@@ -196,7 +249,11 @@ func (h *HttpHandler) webhookVerify(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			slog.Info("challenge completed")
-			w.Write(jBytes)
+			_, err = w.Write(jBytes)
+			if err != nil {
+				slog.Error("error while writing to response", "err", err)
+				return
+			}
 			return
 		}
 	}
@@ -294,7 +351,8 @@ func (h *HttpHandler) Start() {
 	http.HandleFunc("/auth/", h.authHandler)
 	http.HandleFunc("/auth-callback/", h.authCallbackHandler)
 	http.HandleFunc("/activities/", h.getActivities)
-	http.HandleFunc("/activity", h.updateActivity)
+	http.HandleFunc("/user/", h.activitiesPageHandler)
+	http.HandleFunc("/activity/", h.updateActivity)
 	http.HandleFunc("/webhook", h.webhook)
 
 	slog.Info("Starting server on port " + h.Port)

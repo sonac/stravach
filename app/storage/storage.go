@@ -217,7 +217,7 @@ func (s *SQLiteStore) CreateUserActivity(activity *models.UserActivity, userId i
 
 func (s *SQLiteStore) GetUserActivities(userId int64) ([]models.UserActivity, error) {
 	var activities []models.UserActivity
-	query := `SELECT id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed FROM user_activities WHERE user_id = ?`
+	query := `SELECT id, name, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed FROM user_activities WHERE user_id = ?`
 	rows, err := s.DB.Query(query, userId)
 	if err != nil {
 		slog.Error("error while fetching user activities", "id", userId)
@@ -227,7 +227,7 @@ func (s *SQLiteStore) GetUserActivities(userId int64) ([]models.UserActivity, er
 
 	for rows.Next() {
 		var activity models.UserActivity
-		err := rows.Scan(&activity.ID, &activity.Distance, &activity.MovingTime, &activity.ElapsedTime, &activity.ActivityType, &activity.StartDate, &activity.AverageHeartrate, &activity.AverageSpeed)
+		err := rows.Scan(&activity.ID, &activity.Name, &activity.Distance, &activity.MovingTime, &activity.ElapsedTime, &activity.ActivityType, &activity.StartDate, &activity.AverageHeartrate, &activity.AverageSpeed)
 		if err != nil {
 			return nil, err
 		}
@@ -238,8 +238,8 @@ func (s *SQLiteStore) GetUserActivities(userId int64) ([]models.UserActivity, er
 
 func (s *SQLiteStore) GetActivityById(activityId int64) (*models.UserActivity, error) {
 	activity := models.UserActivity{}
-	query := `SELECT id, user_id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed FROM user_activities WHERE id = ?`
-	err := s.DB.QueryRow(query, activityId).Scan(&activity.ID, &activity.UserID, &activity.Distance, &activity.MovingTime, &activity.ElapsedTime, &activity.ActivityType, &activity.StartDate, &activity.AverageHeartrate, &activity.AverageSpeed)
+	query := `SELECT id, name, user_id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed FROM user_activities WHERE id = ?`
+	err := s.DB.QueryRow(query, activityId).Scan(&activity.ID, &activity.Name, &activity.UserID, &activity.Distance, &activity.MovingTime, &activity.ElapsedTime, &activity.ActivityType, &activity.StartDate, &activity.AverageHeartrate, &activity.AverageSpeed)
 	if err != nil {
 		slog.Error("error while fetching user activity", "id", activityId)
 		return nil, err
@@ -258,12 +258,12 @@ func (s *SQLiteStore) IsActivityExists(activityId int64) (bool, error) {
 	return exists, nil
 }
 
-func (s *SQLiteStore) UpdateUserActivity(activity *models.UserActivity, userId int64) error {
+func (s *SQLiteStore) UpdateUserActivity(activity *models.UserActivity) error {
+	fmt.Printf("%+v", activity)
 	query := `
-    UPDATE user_activities (
-    UPDATE SET
+    UPDATE user_activities
+    SET
         name = ?,
-        user_id = ?,
         distance = ?,
         moving_time = ?,
         elapsed_time = ?,
@@ -274,12 +274,13 @@ func (s *SQLiteStore) UpdateUserActivity(activity *models.UserActivity, userId i
         is_updated = ?
     WHERE id = ?
   `
-	result, err := s.DB.Exec(query, activity.Name, userId, activity.Distance, activity.MovingTime,
+	result, err := s.DB.Exec(query, activity.Name, activity.Distance, activity.MovingTime,
 		activity.ElapsedTime, activity.ActivityType, activity.StartDate, activity.AverageHeartrate, activity.AverageSpeed, activity.IsUpdated, activity.ID)
 	if err != nil {
 		slog.Error("error while updating user activity")
 		return err
 	}
+	slog.Debug("activity updated")
 	_, err = result.LastInsertId()
 	return err
 }
