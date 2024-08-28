@@ -15,6 +15,7 @@ import (
 var (
 	srv      *server.HttpHandler
 	telegram *tg.Telegram
+	env      string
 )
 
 func main() {
@@ -22,9 +23,12 @@ func main() {
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	ctx := context.Background()
 	go srv.Start()
-	go telegram.Start(ctx)
+	if env != "DEV" {
+		// do not start telegram on dev
+		go telegram.Start(ctx)
+	}
 
-	slog.Info("press CTRL+C to stop programm\n")
+	slog.Info("press CTRL+C to stop program\n")
 	<-sigCh
 	slog.Info("Shutting down\n")
 	os.Exit(0)
@@ -32,7 +36,8 @@ func main() {
 
 func init() {
 	err := godotenv.Load()
-	if err != nil && os.Getenv("ENV") != "PROD" {
+	env = os.Getenv("ENV")
+	if err != nil && env != "PROD" {
 		slog.Error("error while initializing godotenv")
 		os.Exit(1)
 	}
@@ -42,7 +47,7 @@ func init() {
 	tgApiKey := os.Getenv("TELEGRAM_API_KEY")
 	telegram, err = tg.NewTelegramClient(tgApiKey)
 	if err != nil {
-		slog.Error("error whlie initializing telegram")
+		slog.Error("error while initializing telegram")
 		panic(err)
 	}
 

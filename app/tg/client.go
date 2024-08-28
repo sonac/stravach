@@ -77,12 +77,12 @@ func (tg *Telegram) Start(ctx context.Context) {
 func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	url := os.Getenv("URL")
 	chatID := update.Message.Chat.ID
-	usr, err := tg.DB.GetUserByChatId(chatID)
+	userExists, err := tg.DB.IsUserExistsByChatId(chatID)
 	if err != nil {
 		slog.Error(err.Error())
 	}
-	if usr == nil {
-		usr = &dbModels.User{TelegramChatId: chatID, StravaId: 0}
+	if !userExists {
+		usr := &dbModels.User{TelegramChatId: chatID, StravaId: 0}
 		err = tg.DB.CreateUser(usr)
 		if err != nil {
 			slog.Error(err.Error())
@@ -287,7 +287,10 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 	}
 
 	activity.IsUpdated = true
-	err = tg.DB.UpdateUserActivity(activity, usr.ID)
+	err = tg.DB.UpdateUserActivity(activity)
+	if err != nil {
+		slog.Error("err", err)
+	}
 
 	res, err := tg.Bot.AnswerCallbackQuery(context.Background(), &bot.AnswerCallbackQueryParams{
 		CallbackQueryID: callbackQuery.ID,
