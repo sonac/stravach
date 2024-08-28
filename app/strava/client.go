@@ -154,6 +154,11 @@ func UpdateActivity(accessToken string, activity models.UserActivity) (*models.U
 		return nil, err
 	}
 
+	if resp.StatusCode >= 300 {
+		utils.DebugResponse(resp)
+		return nil, errors.New("received unsuccessful response")
+	}
+
 	var updatedActivity models.UserActivity
 	err = json.NewDecoder(resp.Body).Decode(&updatedActivity)
 	if err != nil {
