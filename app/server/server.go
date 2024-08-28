@@ -175,7 +175,7 @@ func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
             <p><strong>Start Date:</strong> %s</p>
             <p><strong>Avg Heartrate:</strong> %.2f bpm</p>
             <p><strong>Avg Speed:</strong> %.2f km/h</p>
-            <button hx-post="/activity/%d" hx-swap="none">Send to Channel</button>
+            <button hx-post="/activity/%d" hx-swap="none">Update Activity</button>
         </div>`,
 			activity.Name,
 			activity.Distance/1000,  // Convert to kilometers
