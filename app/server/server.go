@@ -324,12 +324,11 @@ func (h *HttpHandler) processActivity(activityId int64, user *models.User) error
 		if err != nil {
 			return err
 		}
-	}
-
-	slog.Debug("updating user in webhook")
-	err = h.DB.UpdateUser(user)
-	if err != nil {
-		return err
+		slog.Debug("updating user in webhook")
+		err = h.DB.UpdateUser(user)
+		if err != nil {
+			slog.Error("error while updating user", "err", err)
+		}
 	}
 
 	fmt.Printf("%+v", activity)
