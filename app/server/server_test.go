@@ -93,7 +93,6 @@ func TestProcessActivity_ActivityExists(t *testing.T) {
 	existingActivity := &models.UserActivity{ID: 123, IsUpdated: true}
 	mockDB.On("IsActivityExists", int64(123)).Return(true, nil)
 	mockDB.On("GetActivityById", int64(123)).Return(existingActivity, nil)
-	mockDB.On("UpdateUser", mock.Anything).Return(nil)
 
 	user := &models.User{StravaAccessToken: "access-token"}
 
