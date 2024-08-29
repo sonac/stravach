@@ -121,6 +121,7 @@ func (tg *Telegram) refreshActivities(ctx context.Context, b *bot.Bot, update *m
 				tg.sendMessage(ctx, chatID, "error occured")
 				return
 			}
+			updateAuthData(usr, *authData)
 		} else {
 			authData, err = tg.Strava.RefreshAccessToken(usr.StravaRefreshToken)
 			if err != nil {
@@ -128,8 +129,9 @@ func (tg *Telegram) refreshActivities(ctx context.Context, b *bot.Bot, update *m
 				tg.sendMessage(ctx, chatID, "error occured")
 				return
 			}
+			usr.StravaRefreshToken = authData.RefreshToken
+			usr.TokenExpiresAt = &authData.ExpiresAt
 		}
-		updateAuthData(usr, *authData)
 	}
 	slog.Debug("updating user in refresh activities")
 	err = tg.DB.UpdateUser(usr)
