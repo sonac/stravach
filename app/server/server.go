@@ -306,7 +306,10 @@ func (h *HttpHandler) processActivity(activityId int64, user *models.User) error
 
 	if exists {
 		slog.Info("activity exists already, probably just got updated")
-		activity, _ = h.DB.GetActivityById(activityId)
+		activity, err = h.DB.GetActivityById(activityId)
+		if err != nil {
+			return err
+		}
 	} else {
 		if user.AuthRequired() {
 			authData, err := h.Strava.RefreshAccessToken(user.StravaRefreshToken)
@@ -328,10 +331,11 @@ func (h *HttpHandler) processActivity(activityId int64, user *models.User) error
 		err = h.DB.UpdateUser(user)
 		if err != nil {
 			slog.Error("error while updating user", "err", err)
+			return err
 		}
 	}
 
-	fmt.Printf("%+v", activity)
+	slog.Debug(fmt.Sprintf("%+v", activity))
 
 	if activity != nil && !activity.IsUpdated {
 		afu := tg.ActivityForUpdate{
