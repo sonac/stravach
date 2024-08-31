@@ -131,7 +131,7 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 
 	usr, err := h.DB.GetUserByChatId(chatId)
 	if err != nil {
-		slog.Error("error while getting user from chatId", err)
+		slog.Error("error while getting user from chatId", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintf(w, "Error occured during callback")
 		return
@@ -264,7 +264,7 @@ func (h *HttpHandler) updateActivity(w http.ResponseWriter, r *http.Request) {
 	// Fetch the user associated with the activity
 	usr, err := h.DB.GetUserById(activity.UserID)
 	if err != nil || usr == nil {
-		slog.Error("error while getting user from DB", err)
+		slog.Error("error while getting user from DB", "err", err)
 		http.Error(w, "Failed to fetch user", http.StatusInternalServerError)
 		return
 	}
