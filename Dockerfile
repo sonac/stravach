@@ -1,5 +1,5 @@
 # Stage 1: Build the Go application with CGO enabled
-FROM golang:1.22-alpine as builder
+FROM --platform=linux/amd64 golang:1.23-alpine as builder
 
 # Install required dependencies for CGO
 RUN apk add --no-cache gcc musl-dev sqlite-dev
