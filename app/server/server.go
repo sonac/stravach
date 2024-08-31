@@ -1,10 +1,6 @@
 package server
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -157,35 +153,52 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
-	hash := r.URL.Query().Get("hash")
-	payloadB64 := r.URL.Query().Get("payload")
-	payloadBytes, err := base64.StdEncoding.DecodeString(payloadB64)
-	if err != nil {
-		http.Error(w, "Invalid payload", http.StatusBadRequest)
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
 
+	// Decode the request body
 	var payload TgPayload
-	err = json.Unmarshal(payloadBytes, &payload)
+	err := json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
-		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		slog.Error("error decoding request body", "error", err)
+		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
 
-	hm := hmac.New(sha256.New, []byte(h.TgApiKey))
-	hm.Write([]byte(payloadB64))
-	checkHash := hex.EncodeToString(hm.Sum(nil))
-
-	if hash != checkHash {
-		http.Error(w, "Invalid hash", http.StatusBadRequest)
+	// Check if the user exists in the database
+	usr, err := h.DB.GetUserByChatId(payload.User.Id)
+	if err != nil {
+		slog.Error("error fetching user from database", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	user := payload.User
+	if usr == nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
 
-	slog.Info(fmt.Sprintf("Updating info for user: %d", user.Id))
-	w.Write([]byte("success"))
-	return
+	// Generate a JWT token
+	tokenString, err := utils.GenerateJWT(usr.ID)
+	if err != nil {
+		slog.Error("error generating JWT token", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Set the JWT token as a cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth_token",
+		Value:    tokenString,
+		HttpOnly: true,
+		Path:     "/",
+	})
+
+	// Send a success response
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Authentication successful"))
 }
 
 func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
@@ -402,7 +415,7 @@ func (h *HttpHandler) Start() {
 	http.HandleFunc("/", h.homeHandler)
 	http.HandleFunc("/auth/", h.authHandler)
 	http.HandleFunc("/auth-callback/", h.authCallbackHandler)
-
+	http.HandleFunc("/tg-auth/", h.tgAuthHandler)
 	http.HandleFunc("/activities/", h.getActivities)
 	http.HandleFunc("/user/", h.activitiesPageHandler)
 	http.HandleFunc("/activity/", h.updateActivity)
