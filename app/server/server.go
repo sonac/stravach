@@ -1,6 +1,10 @@
 package server
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -22,6 +26,7 @@ type HttpHandler struct {
 	Url               string
 	Port              string
 	StravaToken       string
+	TgApiKey          string
 	Strava            strava.Strava
 	DB                storage.Store
 	AI                *openai.OpenAI
@@ -33,10 +38,22 @@ type UpdateActivityRequest struct {
 	UpdateType string `json:"updateType"`
 }
 
+type TgUser struct {
+	Id        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Username  string `json:"username"`
+}
+
+type TgPayload struct {
+	User TgUser `json:"user"`
+}
+
 func (h *HttpHandler) Init() {
 	h.StravaToken = os.Getenv("STRAVA_CHALLENGE_TOKEN")
 	h.Port = os.Getenv("PORT")
 	h.Url = os.Getenv("URL")
+	h.TgApiKey = os.Getenv("TELEGRAM_API_KEY")
 	h.Strava = strava.NewStravaClient()
 	h.DB = &storage.SQLiteStore{}
 	h.AI = openai.NewClient()
@@ -137,6 +154,38 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 		fmt.Fprintf(w, "Error occured during callback")
 		return
 	}
+}
+
+func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
+	hash := r.URL.Query().Get("hash")
+	payloadB64 := r.URL.Query().Get("payload")
+	payloadBytes, err := base64.StdEncoding.DecodeString(payloadB64)
+	if err != nil {
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	var payload TgPayload
+	err = json.Unmarshal(payloadBytes, &payload)
+	if err != nil {
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	hm := hmac.New(sha256.New, []byte(h.TgApiKey))
+	hm.Write([]byte(payloadB64))
+	checkHash := hex.EncodeToString(hm.Sum(nil))
+
+	if hash != checkHash {
+		http.Error(w, "Invalid hash", http.StatusBadRequest)
+		return
+	}
+
+	user := payload.User
+
+	slog.Info(fmt.Sprintf("Updating info for user: %d", user.Id))
+	w.Write([]byte("success"))
+	return
 }
 
 func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
@@ -353,6 +402,7 @@ func (h *HttpHandler) Start() {
 	http.HandleFunc("/", h.homeHandler)
 	http.HandleFunc("/auth/", h.authHandler)
 	http.HandleFunc("/auth-callback/", h.authCallbackHandler)
+
 	http.HandleFunc("/activities/", h.getActivities)
 	http.HandleFunc("/user/", h.activitiesPageHandler)
 	http.HandleFunc("/activity/", h.updateActivity)
