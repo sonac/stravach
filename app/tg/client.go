@@ -62,7 +62,7 @@ func (tg *Telegram) Start(ctx context.Context) {
 	}
 	b, err := bot.New(tg.APIKey, options...)
 	if err != nil {
-		slog.Error("error occured when spinning up the bot", err)
+		slog.Error("error occured when spinning up the bot", "err", err)
 		return
 	}
 	tg.Bot = b
@@ -229,7 +229,7 @@ func (tg *Telegram) SendNotification(chatID int64, messages ...string) {
 		ReplyMarkup: kb,
 	})
 	if err != nil {
-		slog.Error("error while sending a message: ", err)
+		slog.Error("error while sending a message: ", "err", err)
 	}
 }
 
@@ -291,7 +291,7 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 	activity.IsUpdated = true
 	err = tg.DB.UpdateUserActivity(activity)
 	if err != nil {
-		slog.Error("err", err)
+		slog.Error("error when updating user activity", "err", err)
 	}
 
 	res, err := tg.Bot.AnswerCallbackQuery(context.Background(), &bot.AnswerCallbackQueryParams{
