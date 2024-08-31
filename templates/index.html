@@ -76,7 +76,7 @@
                     // Handle successful authentication, e.g., redirect to another page
                     console.log('Authentication successful:', data);
                     // Optionally, redirect the user or show a success message
-                    window.location.href = '/activities/' + user.id;
+                    window.location.href = '/user/' + user.id;
                 })
                 .catch(error => {
                     console.error('Error:', error);

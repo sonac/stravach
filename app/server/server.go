@@ -195,7 +195,7 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    tokenString,
-		HttpOnly: true,
+		HttpOnly: false,
 		Path:     "/",
 	})
 
