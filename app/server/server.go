@@ -153,10 +153,11 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("got tg auth request")
 	if r.Method != http.MethodPost {
 		slog.Error("invalid method", "method", r.Method)
 		utils.DebugRequest(r)
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
