@@ -27,6 +27,7 @@ type HttpHandler struct {
 	DB                storage.Store
 	AI                *openai.OpenAI
 	ActivitiesChannel chan tg.ActivityForUpdate
+	JWT               *utils.JWT
 }
 
 type UpdateActivityRequest struct {
@@ -53,6 +54,7 @@ func (h *HttpHandler) Init() {
 	h.Strava = strava.NewStravaClient()
 	h.DB = &storage.SQLiteStore{}
 	h.AI = openai.NewClient()
+	h.JWT = &utils.JWT{Key: []byte(os.Getenv("JWT_KEY"))}
 	err := h.DB.Connect()
 	if err != nil {
 		slog.Error("error while connecting to DB")
@@ -184,7 +186,7 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate a JWT token
-	tokenString, err := utils.GenerateJWT(usr.ID)
+	token, err := h.JWT.GenerateJWTForUser(payload.User.Id)
 	if err != nil {
 		slog.Error("error generating JWT token", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -193,15 +195,19 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Set the JWT token as a cookie
 	http.SetCookie(w, &http.Cookie{
-		Name:     "auth_token",
-		Value:    tokenString,
-		HttpOnly: false,
-		Path:     "/",
+		Name:    "auth_token",
+		Value:   token.Value,
+		Expires: token.ExpiresAt,
+		Path:    "/",
 	})
 
 	// Send a success response
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Authentication successful"))
+	_, err = w.Write([]byte("Authentication successful"))
+	if err != nil {
+		slog.Error("error writing response")
+		return
+	}
 }
 
 func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
