@@ -9,3 +9,4 @@ stravach
 docker-compose.yml
 .idea
 __debug*
+node_modules

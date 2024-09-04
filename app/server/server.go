@@ -23,6 +23,7 @@ type HttpHandler struct {
 	Port              string
 	StravaToken       string
 	TgApiKey          string
+	StaticDir         string
 	Strava            strava.Strava
 	DB                storage.Store
 	AI                *openai.OpenAI
@@ -55,25 +56,11 @@ func (h *HttpHandler) Init() {
 	h.DB = &storage.SQLiteStore{}
 	h.AI = openai.NewClient()
 	h.JWT = &utils.JWT{Key: []byte(os.Getenv("JWT_KEY"))}
+	h.StaticDir = "./client/dist"
 	err := h.DB.Connect()
 	if err != nil {
 		slog.Error("error while connecting to DB")
 		panic(err)
-	}
-}
-
-func (h *HttpHandler) homeHandler(w http.ResponseWriter, r *http.Request) {
-	tmplPath := filepath.Join("templates", "index.html")
-	tmpl, err := template.ParseFiles(tmplPath)
-	if err != nil {
-		slog.Error("error parsing template", "err", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	err = tmpl.Execute(w, nil)
-	if err != nil {
-		slog.Error("error executing template", "err", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
@@ -421,7 +408,7 @@ func (h *HttpHandler) processActivity(activityId int64, user *models.User) error
 }
 
 func (h *HttpHandler) Start() {
-	http.HandleFunc("/", h.homeHandler)
+	http.Handle("/", http.FileServer(http.Dir(h.StaticDir)))
 	http.HandleFunc("/auth/", h.authHandler)
 	http.HandleFunc("/auth-callback/", h.authCallbackHandler)
 	http.HandleFunc("/tg-auth/", h.tgAuthHandler)

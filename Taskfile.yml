@@ -1,12 +1,15 @@
 version: "3"
 
 tasks:
-  build:
+  build-server:
     cmds:
       - go build app/main.go
-
+  build-client:
+    dir: client
+    cmds:
+      - yarn build
   docker-build:
-    deps: [build]
+    deps: [build-client, build-server]
     cmds:
       - docker build -t ghcr.io/sonac/stravach/stravach:latest .
   

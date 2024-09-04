@@ -50,7 +50,12 @@
         function onTelegramAuth(user) {
             // Create the payload to be sent to the server
             const payload = {
-                user:{'id':212439945,'first_name':'sonac','username':'sonac007'}
+                user: {
+                    id: user.id,
+                    first_name: user.first_name,
+                    last_name: user.last_name,
+                    username: user.username
+                }
             };
 
             // Send the payload to the /tg-auth endpoint
@@ -72,7 +77,7 @@
                     // Handle successful authentication, e.g., redirect to another page
                     console.log('Authentication successful:', data);
                     // Optionally, redirect the user or show a success message
-                    window.location.href = '/user/' + 212439945;
+                    window.location.href = '/user/' + user.id;
                 })
                 .catch(error => {
                     console.error('Error:', error);
