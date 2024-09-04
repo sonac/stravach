@@ -7,6 +7,7 @@ tasks:
   build-client:
     dir: client
     cmds:
+      - yarn install
       - yarn build
   docker-build:
     deps: [build-client, build-server]
