@@ -13,7 +13,9 @@ tasks:
     deps: [build-client, build-server]
     cmds:
       - docker build -t ghcr.io/sonac/stravach/stravach:latest .
-  
+  run:
+    cmds:
+      - go run app/main.go
   test:
     cmds:
       - go test -v ./app/...

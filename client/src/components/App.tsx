@@ -19,6 +19,7 @@ function onTelegramAuth(user: any) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
+    credentials: "include",
   })
     .then((response) => {
       if (response.ok) {
@@ -28,10 +29,8 @@ function onTelegramAuth(user: any) {
       }
     })
     .then((data) => {
-      // Handle successful authentication, e.g., redirect to another page
       console.log("Authentication successful:", data);
-      // Optionally, redirect the user or show a success message
-      window.location.href = "/user/" + 212439945;
+      window.location.href = "/user/" + user.id;
     })
     .catch((error) => {
       console.error("Error:", error);
