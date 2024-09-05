@@ -22,5 +22,5 @@ func DebugRequest(resp *http.Request) {
 	if err != nil {
 		slog.Error(err.Error())
 	}
-	slog.Debug(fmt.Sprintf("got response %s", string(b)))
+	slog.Debug(fmt.Sprintf("got request %s", string(b)))
 }

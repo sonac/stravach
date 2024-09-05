@@ -159,6 +159,7 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Debug("got payload", "%+v", payload.User.Id)
 	// Check if the user exists in the database
 	usr, err := h.DB.GetUserByChatId(payload.User.Id)
 	if err != nil {
@@ -173,7 +174,7 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate a JWT token
-	token, err := h.JWT.GenerateJWTForUser(payload.User.Id)
+	token, err := h.JWT.GenerateJWTForUser(usr.ID)
 	if err != nil {
 		slog.Error("error generating JWT token", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -188,13 +189,7 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 		Path:    "/",
 	})
 
-	// Send a success response
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write([]byte("Authentication successful"))
-	if err != nil {
-		slog.Error("error writing response")
-		return
-	}
 }
 
 func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
@@ -411,7 +406,7 @@ func (h *HttpHandler) Start() {
 	http.Handle("/", http.FileServer(http.Dir(h.StaticDir)))
 	http.HandleFunc("/auth/", h.authHandler)
 	http.HandleFunc("/auth-callback/", h.authCallbackHandler)
-	http.HandleFunc("/tg-auth/", h.tgAuthHandler)
+	http.HandleFunc("/tg-auth", h.tgAuthHandler)
 	http.HandleFunc("/activities/", h.getActivities)
 	http.HandleFunc("/user/", h.activitiesPageHandler)
 	http.HandleFunc("/activity/", h.updateActivity)
