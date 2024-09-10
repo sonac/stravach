@@ -35,7 +35,6 @@ const TelegramLoginButton: React.FC<Props> = ({
   dataAuthUrl,
   usePic = false,
   botName,
-  className,
   buttonSize = "large",
   dataOnauth,
   cornerRadius,
@@ -99,7 +98,7 @@ const TelegramLoginButton: React.FC<Props> = ({
     dataAuthUrl,
   ]);
 
-  return <div ref={ref} className={className} {...wrapperProps} />;
+  return <div ref={ref} className="px-6 py-3" {...wrapperProps} />;
 };
 
 TelegramLoginButton.propTypes = {
