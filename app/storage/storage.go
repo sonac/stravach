@@ -176,7 +176,7 @@ func (s *SQLiteStore) CreateUserActivities(userId int64, activities *[]models.Us
         type = excluded.type,
         start_date = excluded.start_date,
         average_heartrate = excluded.average_heartrate,
-        average_speed = excluded.average_speed
+        average_speed = excluded.average_speed,
 		is_updated = excluded.is_updated
   `
 	for _, a := range *activities {
