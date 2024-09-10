@@ -68,10 +68,32 @@ func (tg *Telegram) Start(ctx context.Context) {
 	}
 	tg.Bot = b
 	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, tg.startHandler)
-	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/refresh_activities", bot.MatchTypeExact, tg.refreshActivities)
+	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/refresh_activities", bot.MatchTypeExact, tg.refreshActivitiesHandler)
 	go tg.Bot.Start(ctx)
 	for activity := range tg.ActivitiesChannel {
 		tg.updateActivity(&activity)
+	}
+}
+
+func (tg *Telegram) SendNotification(chatID int64, messages ...string) {
+	buttons := make([][]models.InlineKeyboardButton, len(messages))
+	for i, msg := range messages {
+		buttons[i] = []models.InlineKeyboardButton{
+			{Text: msg, CallbackData: msg},
+		}
+	}
+
+	kb := &models.InlineKeyboardMarkup{
+		InlineKeyboard: buttons,
+	}
+
+	_, err := tg.Bot.SendMessage(context.Background(), &bot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        "Please choose an option:",
+		ReplyMarkup: kb,
+	})
+	if err != nil {
+		slog.Error("error while sending a message: ", "err", err)
 	}
 }
 
@@ -106,56 +128,19 @@ func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models
 	}
 }
 
-func (tg *Telegram) refreshActivities(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (tg *Telegram) refreshActivitiesHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID := update.Message.Chat.ID
-	var authData *strava.AuthResp
 	usr, err := tg.DB.GetUserByChatId(chatID)
 	if err != nil {
 		slog.Error(err.Error())
 		return
 	}
-	if usr.AuthRequired() {
-		if len(usr.StravaRefreshToken) == 0 {
-			authData, err = tg.Strava.Authorize(usr.StravaAccessCode)
-			if err != nil {
-				slog.Error(err.Error())
-				tg.sendMessage(ctx, chatID, "error occured")
-				return
-			}
-			updateAuthData(usr, *authData)
-		} else {
-			authData, err = tg.Strava.RefreshAccessToken(usr.StravaRefreshToken)
-			if err != nil {
-				slog.Error(err.Error())
-				tg.sendMessage(ctx, chatID, "error occured")
-				return
-			}
-			usr.StravaRefreshToken = authData.RefreshToken
-			usr.TokenExpiresAt = &authData.ExpiresAt
-		}
-	}
-	slog.Debug("updating user in refresh activities")
-	err = tg.DB.UpdateUser(usr)
+	err = tg.refreshActivitiesForUser(usr)
 	if err != nil {
-		slog.Error(err.Error())
-		tg.sendMessage(ctx, chatID, "error occured")
-		return
-	}
-
-	activities, err := strava.GetAllActivities(usr.StravaAccessToken)
-	if err != nil {
-		slog.Error(err.Error())
-		tg.sendMessage(ctx, chatID, "error occured")
-		return
-	}
-	err = tg.DB.CreateUserActivities(usr.ID, activities)
-	if err != nil {
-		slog.Error(err.Error())
-		tg.sendMessage(ctx, chatID, "error occured")
-		return
+		slog.Error("error while refreshing activities for user", "err", err.Error())
 	}
 	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: chatID,
+		ChatID: usr.TelegramChatId,
 		Text:   "activities are refreshed",
 	})
 	if err != nil {
@@ -212,28 +197,6 @@ func (tg *Telegram) sendMessage(ctx context.Context, chatID int64, msg string) {
 	})
 	if err != nil {
 		slog.Error(err.Error())
-	}
-}
-
-func (tg *Telegram) SendNotification(chatID int64, messages ...string) {
-	buttons := make([][]models.InlineKeyboardButton, len(messages))
-	for i, msg := range messages {
-		buttons[i] = []models.InlineKeyboardButton{
-			{Text: msg, CallbackData: msg},
-		}
-	}
-
-	kb := &models.InlineKeyboardMarkup{
-		InlineKeyboard: buttons,
-	}
-
-	_, err := tg.Bot.SendMessage(context.Background(), &bot.SendMessageParams{
-		ChatID:      chatID,
-		Text:        "Please choose an option:",
-		ReplyMarkup: kb,
-	})
-	if err != nil {
-		slog.Error("error while sending a message: ", "err", err)
 	}
 }
 
@@ -317,6 +280,61 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 	if !res {
 		slog.Error("Error while answering callback")
 	}
+}
+
+func (tg *Telegram) refreshActivitiesForUser(usr *dbModels.User) error {
+	var authData *strava.AuthResp
+	var err error
+	if usr.AuthRequired() {
+		authData, err = tg.Strava.RefreshAccessToken(usr.StravaRefreshToken)
+		if err != nil {
+			return err
+		}
+		usr.StravaRefreshToken = authData.RefreshToken
+		usr.StravaAccessToken = authData.AccessToken
+		usr.TokenExpiresAt = &authData.ExpiresAt
+	}
+	slog.Debug("updating user in refresh activities")
+	err = tg.DB.UpdateUser(usr)
+	if err != nil {
+		return err
+	}
+
+	activities, err := strava.GetAllActivities(usr.StravaAccessToken)
+	if err != nil && err.Error() == utils.UNAUTHORIZED {
+		err = tg.refreshAuthForUser(usr)
+		if err != nil {
+			return err
+		}
+		return tg.refreshActivitiesForUser(usr)
+	}
+	if err != nil {
+		slog.Error("error while fetching activities", "err", err.Error())
+
+		return err
+	}
+	err = tg.DB.CreateUserActivities(usr.ID, activities)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (tg *Telegram) refreshAuthForUser(usr *dbModels.User) error {
+	authData, err := tg.Strava.RefreshAccessToken(usr.StravaRefreshToken)
+	if err != nil {
+		return err
+	}
+	usr.StravaRefreshToken = authData.RefreshToken
+	usr.StravaAccessToken = authData.AccessToken
+	usr.TokenExpiresAt = &authData.ExpiresAt
+
+	slog.Debug("updating user in telegram")
+	err = tg.DB.UpdateUser(usr)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func getChatId(update *models.Update) int64 {
