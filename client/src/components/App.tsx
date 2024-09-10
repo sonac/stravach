@@ -2,7 +2,6 @@ import TelegramLoginButton, { TelegramUser } from "./TelegramAuth";
 import "./App.css";
 
 function onTelegramAuth(user: any) {
-  // Create the payload to be sent to the server
   const payload = {
     user: {
       id: user.id,
@@ -12,7 +11,6 @@ function onTelegramAuth(user: any) {
     },
   };
 
-  // Send the payload to the /tg-auth endpoint
   fetch("/tg-auth", {
     method: "POST",
     headers: {
@@ -40,23 +38,23 @@ function onTelegramAuth(user: any) {
 
 function App() {
   return (
-    <>
-      <div>
-        <h1>Welcome to the Strava Activity Renamer Bot!</h1>
-        <p>
-          This bot helps you automatically rename your Strava activities using
-          AI suggestions.
-        </p>
-        <p>
-          Simply authorize your Strava account, and our bot will take care of
-          the rest!
-        </p>
-        <TelegramLoginButton
-          botName="strava_snitch_bot"
-          dataOnauth={(user: TelegramUser) => onTelegramAuth(user)}
-        />
+      <div className="mainContainer">
+        <div className="text-3xl font-bold underline">
+          <h1>Welcome to the Strava Activity Renamer Bot!</h1>
+          <p>
+            This bot helps you automatically rename your Strava activities using
+            AI suggestions.
+          </p>
+          <p>
+            Simply authorize your Strava account, and our bot will take care of
+            the rest!
+          </p>
+          <TelegramLoginButton
+            botName="strava_snitch_bot"
+            dataOnauth={(user: TelegramUser) => onTelegramAuth(user)}
+          />
+        </div>
       </div>
-    </>
   );
 }
 
