@@ -11,6 +11,7 @@ import (
 	"stravach/app/storage"
 	dbModels "stravach/app/storage/models"
 	"stravach/app/strava"
+	"stravach/app/utils"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -177,8 +178,11 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 		return
 	}
 
+	formattedNames := utils.FormatActivityNames(names)
+	formattedNames = append(formattedNames, "0. Regenerate")
+
 	var inlineKeyboard [][]models.InlineKeyboardButton
-	for _, name := range names {
+	for _, name := range formattedNames {
 		button := models.InlineKeyboardButton{
 			Text:         name,
 			CallbackData: fmt.Sprintf("activity %d:%s", activity.Activity.ID, cleanName(name)),
@@ -243,9 +247,24 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 		return
 	}
 
+	activity, err := tg.DB.GetActivityById(activityID)
+	if err != nil {
+		slog.Error("error while fetching activity from DB", "err", err)
+		return
+	}
+
 	usr, err := tg.DB.GetUserByChatId(callbackQuery.From.ID)
 	if err != nil {
 		slog.Error(err.Error())
+		return
+	}
+
+	if newName == "Regenerate" {
+		afu := ActivityForUpdate{
+			Activity: *activity,
+			ChatId:   usr.TelegramChatId,
+		}
+		tg.ActivitiesChannel <- afu
 		return
 	}
 
@@ -272,12 +291,6 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 	err = tg.DB.UpdateUser(usr)
 	if err != nil {
 		slog.Error(err.Error())
-		return
-	}
-
-	activity, err := tg.DB.GetActivityById(activityID)
-	if err != nil {
-		slog.Error("error while fetching activity from DB", "err", err)
 		return
 	}
 

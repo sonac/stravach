@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -54,6 +55,43 @@ func TestGetCodeFromUrl(t *testing.T) {
 			got := GetCodeFromUrl(tt.url)
 			if got != tt.expected {
 				t.Errorf("GetCodeFromUrl() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatActivityNames(t *testing.T) {
+	tests := []struct {
+		input    []string
+		expected []string
+	}{
+		{
+			input:    []string{"1. John", "2- Alex", "3) Mary", "4. Emma-May", "--5-- Max"},
+			expected: []string{"1. John", "2. Alex", "3. Mary", "4. Emma-May", "5. Max"},
+		},
+		{
+			input:    []string{"1- John", "2) Alice-Smith", "-3-- Bobby", "   4. Charlie"},
+			expected: []string{"1. John", "2. Alice-Smith", "3. Bobby", "4. Charlie"},
+		},
+		{
+			input:    []string{"-1. Tim", "-2.- Anna", "3)-James", "4---Thomas"},
+			expected: []string{"1. Tim", "2. Anna", "3. James", "4. Thomas"},
+		},
+		{
+			input:    []string{"1. SingleName"},
+			expected: []string{"1. SingleName"},
+		},
+		{
+			input:    []string{"", "--", "   - -"},
+			expected: []string{"1. ", "2. ", "3. "},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run("Testing FormatList", func(t *testing.T) {
+			result := FormatActivityNames(test.input)
+			if !reflect.DeepEqual(result, test.expected) {
+				t.Errorf("For input %v, expected %v but got %v", test.input, test.expected, result)
 			}
 		})
 	}
