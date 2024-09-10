@@ -150,7 +150,7 @@ func UpdateActivity(accessToken string, activity models.UserActivity) (*models.U
 
 	resp, err := Handler.Do(req)
 	if err != nil {
-		slog.Error("error occured during request creation")
+		slog.Error("error occurred during request creation")
 		return nil, err
 	}
 
@@ -162,7 +162,7 @@ func UpdateActivity(accessToken string, activity models.UserActivity) (*models.U
 	var updatedActivity models.UserActivity
 	err = json.NewDecoder(resp.Body).Decode(&updatedActivity)
 	if err != nil {
-		slog.Error("error occured during response decode handling")
+		slog.Error("error occurred during response decode handling")
 		return nil, err
 	}
 	return &activity, nil
@@ -181,6 +181,10 @@ func getActivities(accessToken string, page int) ([]models.UserActivity, error) 
 	if err != nil {
 		slog.Error("error occurred during request handling")
 		return nil, err
+	}
+	if resp != nil && resp.StatusCode == 401 {
+		slog.Error("received unsuccessful response")
+		return nil, errors.New(utils.UNAUTHORIZED)
 	}
 	err = json.NewDecoder(resp.Body).Decode(&activities)
 	if err != nil {
