@@ -18,10 +18,7 @@ type User struct {
 
 func (u User) AuthRequired() bool {
 	now := time.Now().Unix()
-	if u.TokenExpiresAt != nil && (*u.TokenExpiresAt) > now {
-		return false
-	}
-	return true
+	return u.TokenExpiresAt == nil || (*u.TokenExpiresAt) < now
 }
 
 type UserActivity struct {
