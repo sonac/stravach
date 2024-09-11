@@ -1,5 +1,6 @@
 import TelegramLoginButton, { TelegramUser } from "./TelegramAuth";
 import "./App.css";
+import {Button} from "./ui/button.tsx";
 
 function onTelegramAuth(user: any) {
   const payload = {
@@ -42,6 +43,9 @@ function App() {
       <section className="bg-blue-600 text-white py-16 text-center">
         <h1 className="text-4xl font-bold mb-4">Make Every Workout Memorable</h1>
         <p className="text-lg mb-6">Automatically generate creative names for your Strava activities</p>
+        <Button className="px-28 py-14 text-lg font-bold rounded-lg shadow-lg"  onClick={() => window.open("https://t.me/strava_snitch_bot", "_blank")}>
+          Try the Bot
+        </Button>
         <TelegramLoginButton
           botName="strava_snitch_bot"
           dataOnauth={(user: TelegramUser) => onTelegramAuth(user)}

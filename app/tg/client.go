@@ -215,7 +215,6 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 		slog.Error("error while fetching activity from DB", "err", err)
 		return
 	}
-
 	usr, err := tg.DB.GetUserByChatId(callbackQuery.From.ID)
 	if err != nil {
 		slog.Error(err.Error())
@@ -231,23 +230,11 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 		return
 	}
 
-	var authData *strava.AuthResp
 	if usr.AuthRequired() {
-		if len(usr.StravaRefreshToken) == 0 {
-			authData, err = tg.Strava.Authorize(usr.StravaAccessCode)
-			if err != nil {
-				slog.Error(err.Error())
-				return
-			}
-			updateAuthData(usr, *authData)
-		} else {
-			authData, err = tg.Strava.RefreshAccessToken(usr.StravaRefreshToken)
-			if err != nil {
-				slog.Error(err.Error())
-				return
-			}
-			usr.StravaRefreshToken = authData.RefreshToken
-			usr.TokenExpiresAt = &authData.ExpiresAt
+		err = tg.refreshAuthForUser(usr)
+		if err != nil {
+			slog.Error(err.Error())
+			return
 		}
 	}
 	slog.Debug("updating user in tg callback query")
@@ -283,19 +270,14 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 }
 
 func (tg *Telegram) refreshActivitiesForUser(usr *dbModels.User) error {
-	var authData *strava.AuthResp
-	var err error
 	if usr.AuthRequired() {
-		authData, err = tg.Strava.RefreshAccessToken(usr.StravaRefreshToken)
+		err := tg.refreshAuthForUser(usr)
 		if err != nil {
 			return err
 		}
-		usr.StravaRefreshToken = authData.RefreshToken
-		usr.StravaAccessToken = authData.AccessToken
-		usr.TokenExpiresAt = &authData.ExpiresAt
 	}
 	slog.Debug("updating user in refresh activities")
-	err = tg.DB.UpdateUser(usr)
+	err := tg.DB.UpdateUser(usr)
 	if err != nil {
 		return err
 	}
