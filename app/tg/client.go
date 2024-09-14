@@ -25,6 +25,7 @@ type Telegram struct {
 	Strava            *strava.Client
 	AI                *openai.OpenAI
 	ActivitiesChannel chan ActivityForUpdate
+	CustomPromptState map[int64]int64 // chatID -> activityID
 }
 
 type ActivityForUpdate struct {
@@ -42,18 +43,23 @@ func NewTelegramClient(apiKey string) (*Telegram, error) {
 	stravaClient := strava.NewStravaClient()
 	ai := openai.NewClient()
 	return &Telegram{
-		DB:     db,
-		Strava: stravaClient,
-		AI:     ai,
-		APIKey: apiKey,
+		DB:                db,
+		Strava:            stravaClient,
+		AI:                ai,
+		APIKey:            apiKey,
+		CustomPromptState: make(map[int64]int64),
 	}, nil
 }
 
 func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	b.SendMessage(ctx, &bot.SendMessageParams{
+	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: getChatId(update),
 		Text:   "I am Strava bot! Nice to meet you!",
 	})
+	if err != nil {
+		slog.Error("error in handler", "err", err)
+		return
+	}
 }
 
 func (tg *Telegram) Start(ctx context.Context) {
@@ -69,6 +75,7 @@ func (tg *Telegram) Start(ctx context.Context) {
 	tg.Bot = b
 	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, tg.startHandler)
 	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/refresh_activities", bot.MatchTypeExact, tg.refreshActivitiesHandler)
+	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "", bot.MatchTypePrefix, tg.messageHandler)
 	go tg.Bot.Start(ctx)
 	for activity := range tg.ActivitiesChannel {
 		tg.updateActivity(&activity)
@@ -150,6 +157,53 @@ func (tg *Telegram) refreshActivitiesHandler(ctx context.Context, b *bot.Bot, up
 	}
 }
 
+func (tg *Telegram) messageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	chatId := update.Message.Chat.ID
+	activityID, awaitingPrompt := tg.CustomPromptState[chatId]
+	if !awaitingPrompt {
+		return
+	}
+
+	customPrompt := update.Message.Text
+	delete(tg.CustomPromptState, chatId)
+
+	activity, err := tg.DB.GetActivityById(activityID)
+	if err != nil {
+		slog.Error("error while fetching activity", "err", err)
+		return
+	}
+
+	names, err := tg.AI.GenerateBetterNamesWithCustomizedPrompt(*activity, customPrompt)
+	if err != nil {
+		slog.Error("error while generating names", "err", err)
+		return
+	}
+
+	formattedNames := utils.FormatActivityNames(names)
+	formattedNames = append(formattedNames, "0. Regenerate", "Enter custom prompt")
+
+	var inlineKeyboard [][]models.InlineKeyboardButton
+	for _, name := range formattedNames {
+		button := models.InlineKeyboardButton{
+			Text:         name,
+			CallbackData: fmt.Sprintf("activity %d:%s", activityID, cleanName(name)),
+		}
+		inlineKeyboard = append(inlineKeyboard, []models.InlineKeyboardButton{button})
+	}
+
+	msg := &bot.SendMessageParams{
+		ChatID: chatId,
+		Text:   "Choose a name for your activity",
+		ReplyMarkup: &models.InlineKeyboardMarkup{
+			InlineKeyboard: inlineKeyboard,
+		},
+	}
+	_, err = b.SendMessage(ctx, msg)
+	if err != nil {
+		slog.Error("error while sending message", "err", err)
+	}
+}
+
 func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 	usr, err := tg.DB.GetUserByChatId(activity.ChatId)
 	if err != nil {
@@ -164,7 +218,7 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 	}
 
 	formattedNames := utils.FormatActivityNames(names)
-	formattedNames = append(formattedNames, "0. Regenerate")
+	formattedNames = append(formattedNames, "0. Regenerate", "Enter custom prompt")
 
 	var inlineKeyboard [][]models.InlineKeyboardButton
 	for _, name := range formattedNames {
@@ -204,7 +258,7 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 	callbackQuery := update.CallbackQuery
 	var activityID int64
 	_, err := fmt.Sscanf(callbackQuery.Data, "activity %d", &activityID)
-	newName := strings.Split(callbackQuery.Data, ":")[1]
+	action := strings.Split(callbackQuery.Data, ":")[1]
 	if err != nil {
 		slog.Error("error while parsing callback data", "err", err)
 		return
@@ -221,12 +275,24 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 		return
 	}
 
-	if newName == "Regenerate" {
+	if action == "Regenerate" {
 		afu := ActivityForUpdate{
 			Activity: *activity,
 			ChatId:   usr.TelegramChatId,
 		}
 		tg.ActivitiesChannel <- afu
+		return
+	}
+
+	if action == "Enter custom prompt" {
+		tg.CustomPromptState[callbackQuery.From.ID] = activityID
+		_, err = b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: callbackQuery.From.ID,
+			Text:   "Please enter your custom prompt for generating activity names:",
+		})
+		if err != nil {
+			slog.Error("error while sending message", "err", err)
+		}
 		return
 	}
 
@@ -244,7 +310,7 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, b *bot.Bot, update 
 		return
 	}
 
-	activity.Name = newName
+	activity.Name = action
 	_, err = strava.UpdateActivity(usr.StravaAccessToken, *activity)
 	if err != nil {
 		slog.Error("error while updating activity", "err", err)
