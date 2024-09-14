@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-type Request struct {
+type AIRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 }
@@ -41,6 +41,17 @@ func NewClient() *OpenAI {
 func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity) ([]string, error) {
 	prompt := fmt.Sprintf("Generate a several, new-line separated ironic names for the following activity: %s, %s, duration: %d seconds",
 		activity.Name, activity.ActivityType, activity.ElapsedTime)
+	return ai.sendRequest(prompt)
+}
+
+func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, customPrompt string) ([]string, error) {
+	prompt := fmt.Sprintf("Generate a several, %s, new-line separated names for the following activity: %s, %s, duration: %d seconds",
+		customPrompt, activity.Name, activity.ActivityType, activity.ElapsedTime)
+	return ai.sendRequest(prompt)
+}
+
+func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
+
 	messages := []Message{
 		{
 			Role:    "system",
@@ -51,7 +62,7 @@ func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity) ([]string, e
 			Content: prompt,
 		},
 	}
-	requestBody, err := json.Marshal(Request{
+	requestBody, err := json.Marshal(AIRequest{
 		Model:    "gpt-4o",
 		Messages: messages,
 	})
