@@ -75,6 +75,7 @@ func (tg *Telegram) Start(ctx context.Context) {
 	tg.Bot = b
 	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, tg.startHandler)
 	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/refresh_activities", bot.MatchTypeExact, tg.refreshActivitiesHandler)
+	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/set_language", bot.MatchTypePrefix, tg.setLanguageHandler)
 	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "", bot.MatchTypePrefix, tg.messageHandler)
 	go tg.Bot.Start(ctx)
 	for activity := range tg.ActivitiesChannel {
@@ -157,6 +158,36 @@ func (tg *Telegram) refreshActivitiesHandler(ctx context.Context, b *bot.Bot, up
 	}
 }
 
+func (tg *Telegram) setLanguageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	chatID := update.Message.Chat.ID
+	usr, err := tg.DB.GetUserByChatId(chatID)
+	if err != nil {
+		slog.Error(err.Error())
+		return
+	}
+	msgArr := strings.Split(update.Message.Text, " ")
+	if len(msgArr) != 2 {
+		tg.sendMessage(ctx, chatID, "Message should be /set_language Language")
+		return
+	}
+	language := msgArr[1]
+	usr.Language = language
+	err = tg.DB.UpdateUser(usr)
+	if err != nil {
+		slog.Error(err.Error())
+		return
+	}
+	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: usr.TelegramChatId,
+		Text:   "Your language was set to " + language,
+	})
+	if err != nil {
+		slog.Error(err.Error())
+		tg.sendMessage(ctx, chatID, "error occured")
+		return
+	}
+}
+
 func (tg *Telegram) messageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatId := update.Message.Chat.ID
 	activityID, awaitingPrompt := tg.CustomPromptState[chatId]
@@ -211,7 +242,7 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 		return
 	}
 
-	names, err := tg.AI.GenerateBetterNames(activity.Activity)
+	names, err := tg.AI.GenerateBetterNames(activity.Activity, "English")
 	if err != nil {
 		slog.Error("error while generating names", "err", err)
 		return
@@ -392,17 +423,11 @@ func getChatId(update *models.Update) int64 {
 	if update.CallbackQuery != nil {
 		return update.CallbackQuery.From.ID
 	}
-	panic("unknown type of update")
+	slog.Error("unknown type of update")
+	return 0
 }
 
 func cleanName(name string) string {
 	re := regexp.MustCompile(`(^\d+\.\s)|(^-\s)`)
 	return re.ReplaceAllString(name, "")
-}
-
-func updateAuthData(u *dbModels.User, authData strava.AuthResp) {
-	u.StravaAccessToken = authData.AccessToken
-	u.StravaRefreshToken = authData.RefreshToken
-	u.TokenExpiresAt = &authData.ExpiresAt
-	u.StravaId = authData.Athlete.Id
 }

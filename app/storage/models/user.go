@@ -14,6 +14,7 @@ type User struct {
 	StravaAccessToken  string `json:"strava_access_token"`
 	StravaAccessCode   string `json:"strava_access_code"`
 	TokenExpiresAt     *int64 `json:"token_expires_at"`
+	Language           string `json:"language"`
 }
 
 func (u User) AuthRequired() bool {
