@@ -243,7 +243,7 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 		return
 	}
 
-	names, err := tg.AI.GenerateBetterNames(activity.Activity, "English")
+	names, err := tg.AI.GenerateBetterNames(activity.Activity, usr.Language)
 	if err != nil {
 		slog.Error("error while generating names", "err", err)
 		return
