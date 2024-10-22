@@ -101,7 +101,8 @@ func (tg *Telegram) SendNotification(chatID int64, messages ...string) {
 		ReplyMarkup: kb,
 	})
 	if err != nil {
-		slog.Error("error while sending a message: ", "err", err)
+		slog.Error("error while sending a message: ", "err", err, "data: ", fmt.Sprintf("%+v", kb))
+		tg.sendMessage(context.Background(), chatID, "wasn't able to generate message")
 	}
 }
 
