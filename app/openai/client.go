@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"stravach/app/storage/models"
@@ -39,19 +40,19 @@ func NewClient() *OpenAI {
 }
 
 func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity, language string) ([]string, error) {
-	prompt := fmt.Sprintf("Generate a several, new-line separated ironic names for the following activity: %s, %s, duration: %d seconds in %s",
+	prompt := fmt.Sprintf("Generate a several, new-line separated ironic names for the following activity: %s, %s, duration: %d seconds in %s language",
 		activity.Name, activity.ActivityType, activity.ElapsedTime, language)
 	return ai.sendRequest(prompt)
 }
 
 func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, customPrompt string) ([]string, error) {
-	prompt := fmt.Sprintf("Generate a several, %s, new-line separated names for the following activity: %s, %s, duration: %d seconds",
-		customPrompt, activity.Name, activity.ActivityType, activity.ElapsedTime)
+	prompt := fmt.Sprintf("Generate a several, new-line separated names for the following activity: %s, %s, duration: %d seconds. Use this also as an input for prompt: %s",
+		activity.Name, activity.ActivityType, activity.ElapsedTime, customPrompt)
 	return ai.sendRequest(prompt)
 }
 
 func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
-
+	slog.Debug(prompt)
 	messages := []Message{
 		{
 			Role:    "system",
