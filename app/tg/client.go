@@ -272,7 +272,8 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 	_, err = tg.Bot.SendMessage(context.Background(), msg)
 	if err != nil {
 		slog.Error("error while sending message", "err", err)
-		slog.Debug(fmt.Sprintf("%+v", msg))
+		slog.Debug("keyboard is: " + fmt.Sprintf("%+v", inlineKeyboard))
+		slog.Debug("names are: " + fmt.Sprintf("%+v", formattedNames))
 		return
 	}
 }
