@@ -40,13 +40,13 @@ func NewClient() *OpenAI {
 }
 
 func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity, language string) ([]string, error) {
-	prompt := fmt.Sprintf("Generate a several, new-line separated ironic names for the following activity: %s, %s, duration: %d seconds in %s language",
+	prompt := fmt.Sprintf("Generate a several, new-line separated funny names for the following activity: %s, of type %s, duration: %d seconds in %s language. This is for my Strava.",
 		activity.Name, activity.ActivityType, activity.ElapsedTime, language)
 	return ai.sendRequest(prompt)
 }
 
 func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, customPrompt string) ([]string, error) {
-	prompt := fmt.Sprintf("Generate a several, new-line separated names for the following activity: %s, %s, duration: %d seconds. Use this also as an input for prompt: %s",
+	prompt := fmt.Sprintf("Generate a several, new-line separated names for the following activity: %s, of type %s, duration: %d seconds. Use this also as an input for prompt: %s. This is for my Strava.",
 		activity.Name, activity.ActivityType, activity.ElapsedTime, customPrompt)
 	return ai.sendRequest(prompt)
 }
