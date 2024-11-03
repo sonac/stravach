@@ -392,9 +392,9 @@ func (tg *Telegram) refreshActivitiesForUser(usr *dbModels.User) error {
 	}
 	if err != nil {
 		slog.Error("error while fetching activities", "err", err.Error())
-
 		return err
 	}
+
 	err = tg.DB.CreateUserActivities(usr.ID, activities)
 	if err != nil {
 		return err
@@ -432,5 +432,9 @@ func getChatId(update *models.Update) int64 {
 
 func cleanName(name string) string {
 	re := regexp.MustCompile(`(^\d+\.\s)|(^-\s)`)
-	return re.ReplaceAllString(name, "")
+	newStr := re.ReplaceAllString(name, "")
+	if len(newStr) > 50 {
+		return newStr[0:45] + "..."
+	}
+	return newStr
 }
