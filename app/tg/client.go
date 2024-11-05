@@ -433,8 +433,8 @@ func getChatId(update *models.Update) int64 {
 func cleanName(name string) string {
 	re := regexp.MustCompile(`(^\d+\.\s)|(^-\s)`)
 	newStr := re.ReplaceAllString(name, "")
-	if len(newStr) > 50 {
-		return newStr[0:45] + "..."
+	if len(newStr) > 44 {
+		return newStr[0:44] + "..."
 	}
 	return newStr
 }
