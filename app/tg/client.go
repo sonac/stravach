@@ -434,7 +434,7 @@ func cleanName(name string) string {
 	re := regexp.MustCompile(`(^\d+\.\s)|(^-\s)`)
 	newStr := re.ReplaceAllString(name, "")
 	if len(newStr) > 44 {
-		return newStr[0:44] + "..."
+		return newStr[0:40] + "..."
 	}
 	return newStr
 }
