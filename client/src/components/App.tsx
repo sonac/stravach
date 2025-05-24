@@ -1,8 +1,11 @@
 import TelegramLoginButton, { TelegramUser } from "./TelegramAuth";
 import "./App.css";
-import {Button} from "./ui/button.tsx";
+import { Button } from "./ui/button.tsx";
+import { Routes, Route, Link, useNavigate } from "react-router-dom"; 
+import ActivitiesPage from "../pages/ActivitiesPage"; 
+import UserProfilePage from "../pages/UserProfilePage"; 
 
-function onTelegramAuth(user: any) {
+function onTelegramAuth(user: TelegramUser, navigate: ReturnType<typeof useNavigate>) { 
   const payload = {
     user: {
       id: user.id,
@@ -29,7 +32,7 @@ function onTelegramAuth(user: any) {
     })
     .then((data) => {
       console.log("Authentication successful:", data);
-      window.location.href = "/user/" + user.id;
+      navigate(`/user/${user.id}`); 
     })
     .catch((error) => {
       console.error("Error:", error);
@@ -37,18 +40,19 @@ function onTelegramAuth(user: any) {
     });
 }
 
-function App() {
+const HomePage = () => {
+  const navigate = useNavigate(); 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
       <section className="bg-blue-600 text-white py-16 text-center">
         <h1 className="text-4xl font-bold mb-4">Make Every Workout Memorable</h1>
         <p className="text-lg mb-6">Automatically generate creative names for your Strava activities</p>
-        <Button className="px-28 py-14 text-lg font-bold rounded-lg shadow-lg"  onClick={() => window.open("https://t.me/strava_snitch_bot", "_blank")}>
+        <Button className="px-28 py-14 text-lg font-bold rounded-lg shadow-lg" onClick={() => window.open("https://t.me/strava_snitch_bot", "_blank")}>
           Try the Bot
         </Button>
         <TelegramLoginButton
           botName="strava_snitch_bot"
-          dataOnauth={(user: TelegramUser) => onTelegramAuth(user)}
+          dataOnauth={(user: TelegramUser) => onTelegramAuth(user, navigate)} 
         />
       </section>
       <section className="py-16 bg-white">
@@ -73,7 +77,7 @@ function App() {
       <section className="py-16 bg-gray-100">
         <div className="container mx-auto text-center">
           <h2 className="text-3xl font-semibold mb-8">
-            Sometimes I go for a run, just because I'm bored. <br/>
+            Sometimes I go for a run, just because I'm bored. <br />
             And I go there not for the boring "Evening Run" names in my Strava!
           </h2>
           <div className="flex flex-col md:flex-row justify-center items-center gap-8">
@@ -115,6 +119,25 @@ function App() {
           </div>
         </div>
       </section>
+    </>
+  );
+};
+
+function App() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <nav style={{ backgroundColor: '#333', padding: '10px 20px', color: 'white' }}>
+        <ul style={{ listStyleType: 'none', margin: 0, padding: 0, display: 'flex', gap: '20px' }}>
+          <li><Link to="/" style={{ color: 'white', textDecoration: 'none' }}>Home</Link></li>
+          <li><Link to="/activities" style={{ color: 'white', textDecoration: 'none' }}>Activities</Link></li>
+        </ul>
+      </nav>
+
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/activities" element={<ActivitiesPage />} />
+        <Route path="/user/:userId" element={<UserProfilePage />} />
+      </Routes>
     </div>
   );
 }
