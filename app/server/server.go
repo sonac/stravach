@@ -215,6 +215,8 @@ func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//slog.Debug("got user activities", "userActivities", userActivities)
+
 	// Generate the HTML for the activities grid
 	var activitiesHTML strings.Builder
 	for _, activity := range userActivities {

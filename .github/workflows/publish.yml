@@ -40,15 +40,3 @@ jobs:
           context: .
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-      - name: Deploy to DigitalOcean
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.DROPLET_IP }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd apps
-            docker compose down
-            cat gh_token | docker login ghcr.io -u sonac --password-stdin
-            docker pull ghcr.io/sonac/stravach:master
-            docker compose up -d

@@ -28,12 +28,39 @@ type Response struct {
 	} `json:"choices"`
 }
 
+type Content struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+type CompletionMessage struct {
+	Content    Content `json:"content"`
+	Role       string  `json:"role"`
+	StopReason string  `json:"stop_reason"`
+}
+
+type MetaResponse struct {
+	CompletionMessage CompletionMessage `json:"completion_message"`
+	Metrics           interface{}       `json:"metrics"`
+}
+
 type OpenAI struct {
 	ApiKey string
 }
 
+// IsActivityNameSuggestion returns true if the message contains suggestions for activity names, using OpenAI
+func (ai *OpenAI) IsActivityNameSuggestion(message string) (bool, error) {
+	prompt := "Does the following message contain suggestions for names for activities? Answer only 'yes' or 'no'. Message: " + message
+	resp, err := ai.sendRequest(prompt)
+	if err != nil || len(resp) == 0 {
+		return false, err
+	}
+	answer := strings.ToLower(strings.TrimSpace(resp[0]))
+	return strings.HasPrefix(answer, "yes"), nil
+}
+
 func NewClient() *OpenAI {
-	apiKey := os.Getenv("OPENAI_API_KEY")
+	apiKey := os.Getenv("LLAMA_API_KEY")
 	return &OpenAI{
 		ApiKey: apiKey,
 	}
@@ -46,7 +73,9 @@ func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity, language str
 }
 
 func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, customPrompt string) ([]string, error) {
-	prompt := fmt.Sprintf("Generate a several, new-line separated names for the following activity: %s, of type %s, duration: %d seconds. Use this also as an input for prompt: %s. This is for my Strava.",
+	prompt := fmt.Sprintf("Generate up to three, new-line separated names for the following activity: %s, of type %s, duration: %d seconds. Use this also as an input for prompt: %s. "+
+		"This is for my Strava. Based on the suggested input - deduct if it should be included into the output. And if it looks like already a name - just return it. "+
+		"If it's a long message that contains something that looks like a name - return it.",
 		activity.Name, activity.ActivityType, activity.ElapsedTime, customPrompt)
 	return ai.sendRequest(prompt)
 }
@@ -64,14 +93,14 @@ func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
 		},
 	}
 	requestBody, err := json.Marshal(AIRequest{
-		Model:    "gpt-4o",
+		Model:    "Llama-3.3-70B-Instruct",
 		Messages: messages,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(requestBody))
+	req, err := http.NewRequest("POST", "https://api.llama.com/v1/chat/completions", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return nil, err
 	}
@@ -101,16 +130,18 @@ func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
 		return nil, nil
 	}
 
-	var openAIResponse Response
-	err = json.Unmarshal(body, &openAIResponse)
+	slog.Debug(string(body))
+
+	var metaAIResponse MetaResponse
+	err = json.Unmarshal(body, &metaAIResponse)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(openAIResponse.Choices) == 0 {
+	if metaAIResponse.CompletionMessage.Content.Text == "" {
 		return nil, fmt.Errorf("no respnse from OpenAI")
 	}
 
-	names := strings.Split(openAIResponse.Choices[0].Message.Content, "\n")
+	names := strings.Split(metaAIResponse.CompletionMessage.Content.Text, "\n")
 	return names, nil
 }

@@ -51,20 +51,8 @@ func NewTelegramClient(apiKey string) (*Telegram, error) {
 	}, nil
 }
 
-func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: getChatId(update),
-		Text:   "I am Strava bot! Nice to meet you!",
-	})
-	if err != nil {
-		slog.Error("error in handler", "err", err)
-		return
-	}
-}
-
 func (tg *Telegram) Start(ctx context.Context) {
 	options := []bot.Option{
-		bot.WithDefaultHandler(handler),
 		bot.WithCallbackQueryDataHandler("activity", bot.MatchTypePrefix, tg.handleCallbackQuery),
 	}
 	b, err := bot.New(tg.APIKey, options...)
@@ -191,10 +179,7 @@ func (tg *Telegram) setLanguageHandler(ctx context.Context, b *bot.Bot, update *
 
 func (tg *Telegram) messageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatId := update.Message.Chat.ID
-	activityID, awaitingPrompt := tg.CustomPromptState[chatId]
-	if !awaitingPrompt {
-		return
-	}
+	activityID, _ := tg.CustomPromptState[chatId]
 
 	customPrompt := update.Message.Text
 	delete(tg.CustomPromptState, chatId)
@@ -269,6 +254,7 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 		},
 	}
 
+	tg.CustomPromptState[usr.TelegramChatId] = activity.Activity.ID
 	_, err = tg.Bot.SendMessage(context.Background(), msg)
 	if err != nil {
 		slog.Error("error while sending message", "err", err)
