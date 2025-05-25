@@ -101,7 +101,11 @@ func (s *SQLiteStore) migrate() error {
 		_ = rows.Close()
 	}(rows)
 
-	columnExists := false
+	type colInfo struct {
+		name    string
+		notnull int
+	}
+	var cols []colInfo
 	for rows.Next() {
 		var cid int
 		var name string
@@ -112,17 +116,66 @@ func (s *SQLiteStore) migrate() error {
 		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
 			return fmt.Errorf("failed to scan row: %w", err)
 		}
-		if name == "language" {
-			columnExists = true
-			break
-		}
+		cols = append(cols, colInfo{name, notnull})
 	}
 
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("failed to iterate rows: %w", err)
 	}
 
-	if !columnExists {
+	var needMigration bool
+	for _, col := range cols {
+		if (col.name == "strava_id" || col.name == "email") && col.notnull == 1 {
+			needMigration = true
+		}
+	}
+
+	if needMigration {
+		slog.Info("Migrating users table to relax NOT NULL on strava_id and email...")
+		_, err := s.DB.Exec(`
+			CREATE TABLE IF NOT EXISTS users_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				strava_id INTEGER UNIQUE,
+				telegram_chat_id INTEGER UNIQUE NOT NULL,
+				username TEXT NOT NULL,
+				email TEXT,
+				strava_refresh_token TEXT,
+				strava_access_token TEXT,
+				strava_access_code TEXT,
+				token_expires_at INTEGER,
+				language TEXT
+			);
+		`)
+		if err != nil {
+			return fmt.Errorf("failed to create users_new table: %w", err)
+		}
+		_, err = s.DB.Exec(`
+			INSERT INTO users_new (id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language)
+			SELECT id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language FROM users;
+		`)
+		if err != nil {
+			return fmt.Errorf("failed to copy data to users_new: %w", err)
+		}
+		_, err = s.DB.Exec(`DROP TABLE users;`)
+		if err != nil {
+			return fmt.Errorf("failed to drop old users table: %w", err)
+		}
+		_, err = s.DB.Exec(`ALTER TABLE users_new RENAME TO users;`)
+		if err != nil {
+			return fmt.Errorf("failed to rename users_new to users: %w", err)
+		}
+		slog.Info("Migration completed: users table now allows NULL for strava_id and email.")
+	}
+
+	// Also ensure 'language' column exists (legacy logic)
+	langColExists := false
+	for _, col := range cols {
+		if col.name == "language" {
+			langColExists = true
+			break
+		}
+	}
+	if !langColExists {
 		alterQuery := `ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'English'`
 		_, err := s.DB.Exec(alterQuery)
 		if err != nil {
@@ -136,11 +189,12 @@ func (s *SQLiteStore) migrate() error {
 }
 
 func (s *SQLiteStore) CreateUser(user *models.User) error {
-	slog.Info("inserting user", "user", user.Username)
+	slog.Info("inserting user", "user_struct", fmt.Sprintf("%+v", user))
 	username := "anonymous"
 	if user.Username != "" {
 		username = user.Username
 	}
+	slog.Info("CreateUser values", "strava_id", user.StravaId, "telegram_chat_id", user.TelegramChatId, "username", username, "email", user.Email, "strava_refresh_token", user.StravaRefreshToken, "strava_access_token", user.StravaAccessToken, "strava_access_code", user.StravaAccessCode, "token_expires_at", user.TokenExpiresAt, "language", user.Language)
 	query := `
 		INSERT INTO users (
 				strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language
@@ -157,7 +211,7 @@ func (s *SQLiteStore) CreateUser(user *models.User) error {
 	`
 	result, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, username, user.Email, user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt, "English")
 	if err != nil {
-		slog.Error("error while creating user")
+		slog.Error("error while creating user", "err", err, "strava_id", user.StravaId, "telegram_chat_id", user.TelegramChatId, "username", username, "email", user.Email)
 		return err
 	}
 	user.ID, err = result.LastInsertId()
@@ -200,7 +254,7 @@ func (s *SQLiteStore) GetUserByStravaId(id int64) (*models.User, error) {
 
 func (s *SQLiteStore) IsUserExistsByChatId(chatId int64) (bool, error) {
 	var exists bool
-	query := `SELECT COUNT(1) FROM users WHERE id = ?`
+	query := `SELECT COUNT(1) FROM users WHERE telegram_chat_id = ?`
 	err := s.DB.QueryRow(query, chatId).Scan(&exists)
 	if err != nil {
 		slog.Error("error while checking if activity exists", "id", chatId)
