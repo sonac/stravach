@@ -146,7 +146,7 @@ func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models
 		return
 	}
 	if !userExists {
-		usr := &dbModels.User{TelegramChatId: chatID, StravaId: 0}
+		usr := &dbModels.User{TelegramChatId: chatID, StravaId: nil}
 		err = tg.DB.CreateUser(usr)
 		if err != nil {
 			slog.Error("failed to create user", "err", err, "chatID", chatID)
