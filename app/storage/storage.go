@@ -136,6 +136,7 @@ func (s *SQLiteStore) migrate() error {
 }
 
 func (s *SQLiteStore) CreateUser(user *models.User) error {
+	slog.Info("inserting user", "user", user.Username)
 	query := `
 		INSERT INTO users (
 				strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language
@@ -201,6 +202,7 @@ func (s *SQLiteStore) IsUserExistsByChatId(chatId int64) (bool, error) {
 		slog.Error("error while checking if activity exists", "id", chatId)
 		return false, err
 	}
+	slog.Debug("user exists result: ", "exists", exists)
 	return exists, nil
 }
 

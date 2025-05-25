@@ -178,6 +178,10 @@ func (tg *Telegram) setLanguageHandler(ctx context.Context, b *bot.Bot, update *
 }
 
 func (tg *Telegram) messageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	if strings.HasPrefix(update.Message.Text, "/") {
+		slog.Debug("this is command")
+		return
+	}
 	chatId := update.Message.Chat.ID
 	activityID, _ := tg.CustomPromptState[chatId]
 
@@ -403,17 +407,6 @@ func (tg *Telegram) refreshAuthForUser(usr *dbModels.User) error {
 		return err
 	}
 	return nil
-}
-
-func getChatId(update *models.Update) int64 {
-	if update.Message != nil {
-		return update.Message.From.ID
-	}
-	if update.CallbackQuery != nil {
-		return update.CallbackQuery.From.ID
-	}
-	slog.Error("unknown type of update")
-	return 0
 }
 
 func cleanName(name string) string {
