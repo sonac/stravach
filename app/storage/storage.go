@@ -137,13 +137,17 @@ func (s *SQLiteStore) migrate() error {
 
 func (s *SQLiteStore) CreateUser(user *models.User) error {
 	slog.Info("inserting user", "user", user.Username)
+	username := "anonymous"
+	if user.Username != "" {
+		username = user.Username
+	}
 	query := `
 		INSERT INTO users (
 				strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(strava_id) DO UPDATE SET
 				telegram_chat_id = excluded.telegram_chat_id,
-				username = excluded.username,
+				username = username,
 				email = excluded.email,
 				strava_refresh_token = excluded.strava_refresh_token,
 				strava_access_token = excluded.strava_access_token,
@@ -151,7 +155,7 @@ func (s *SQLiteStore) CreateUser(user *models.User) error {
 				token_expires_at = excluded.token_expires_at,
 				language = excluded.language,
 	`
-	result, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, user.Username, user.Email, user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt, "English")
+	result, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, username, user.Email, user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt, "English")
 	if err != nil {
 		slog.Error("error while creating user")
 		return err
