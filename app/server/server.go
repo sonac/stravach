@@ -130,7 +130,7 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 
 	usr.StravaAccessToken = authData.AccessToken
 	usr.StravaRefreshToken = authData.RefreshToken
-	usr.StravaId = authData.Athlete.Id
+	usr.StravaId = &authData.Athlete.Id
 	slog.Debug("updating user in auth callback")
 	err = h.DB.UpdateUser(usr)
 	if err != nil {

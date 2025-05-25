@@ -28,7 +28,7 @@ type SQLiteStore struct {
 }
 
 func (s *SQLiteStore) Connect() error {
-	db, err := sql.Open("sqlite3", "stravach.db")
+	db, err := sql.Open("sqlite3", "stravach_remote.db")
 	if err != nil {
 		slog.Error("cannot open sqlite file")
 		return err
@@ -207,7 +207,7 @@ func (s *SQLiteStore) CreateUser(user *models.User) error {
 				strava_access_token = excluded.strava_access_token,
 				strava_access_code = excluded.strava_access_code,
 				token_expires_at = excluded.token_expires_at,
-				language = excluded.language,
+				language = excluded.language
 	`
 	result, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, username, user.Email, user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt, "English")
 	if err != nil {
