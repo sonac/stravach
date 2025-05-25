@@ -352,11 +352,6 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, _ *bot.Bot, update 
 		return
 	}
 
-	// activity:activity_id:action_or_name
-	// e.g. activity:123:My Awesome Ride
-	// e.g. activity:123:0. Regenerate
-	// e.g. activity:123:Enter custom prompt
-
 	activityIDStr := parts[1]
 	activityID, err := strconv.ParseInt(activityIDStr, 10, 64)
 	if err != nil {
