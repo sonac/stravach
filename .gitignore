@@ -1,5 +1,6 @@
 .env
 stravach.db
+stravach_remote.db
 db.sqlite
 .vscode
 main
