@@ -61,7 +61,7 @@ func (tg *Telegram) Start(ctx context.Context) {
 		return
 	}
 	tg.Bot = b
-	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, tg.startHandler)
+	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, tg.startHandler)
 	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/refresh_activities", bot.MatchTypeExact, tg.refreshActivitiesHandler)
 	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/set_language", bot.MatchTypePrefix, tg.setLanguageHandler)
 	tg.Bot.RegisterHandler(bot.HandlerTypeMessageText, "", bot.MatchTypePrefix, tg.messageHandler)
@@ -95,6 +95,7 @@ func (tg *Telegram) SendNotification(chatID int64, messages ...string) {
 }
 
 func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	slog.Debug("received start command")
 	url := os.Getenv("URL")
 	chatID := update.Message.Chat.ID
 	userExists, err := tg.DB.IsUserExistsByChatId(chatID)
