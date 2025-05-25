@@ -199,7 +199,7 @@ func (s *SQLiteStore) CreateUser(user *models.User) error {
 		INSERT INTO users (
 				strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(strava_id) DO UPDATE SET
+		ON CONFLICT(telegram_chat_id) DO UPDATE SET
 				telegram_chat_id = excluded.telegram_chat_id,
 				username = username,
 				email = excluded.email,

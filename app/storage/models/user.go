@@ -6,7 +6,7 @@ import (
 
 type User struct {
 	ID                 int64  `json:"id,omitempty"`
-	StravaId           int64  `json:"strava_id"`
+	StravaId           *int64 `json:"strava_id"`
 	TelegramChatId     int64  `json:"telegram_chat_id"`
 	Username           string `json:"username"`
 	Email              string `json:"email"`
