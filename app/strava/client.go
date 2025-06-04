@@ -128,7 +128,6 @@ func (c *Client) GetAllActivities(accessToken string) (*[]models.UserActivity, e
 		}
 		totalActivities = append(totalActivities, curActivities...)
 		curPage++
-		break
 	}
 	return &totalActivities, nil
 }
@@ -167,7 +166,7 @@ func (c *Client) UpdateActivity(accessToken string, activity models.UserActivity
 		slog.Error("error occurred during response decode handling")
 		return nil, err
 	}
-	return &activity, nil
+	return &updatedActivity, nil
 }
 
 func getActivities(accessToken string, page int) ([]models.UserActivity, error) {
