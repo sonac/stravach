@@ -66,7 +66,8 @@ type Telegram struct {
 	Strava            strava.StravaService
 	AI                AI
 	ActivitiesChannel chan ActivityForUpdate
-	CustomPromptState map[int64]int64 // chatID -> activityID
+	LastActivity      map[int64]int64              // chatID -> activityID
+	NameOptions       map[int64]map[int64][]string // chatID -> activityID -> []options
 }
 
 type ActivityForUpdate struct {
@@ -88,8 +89,9 @@ func NewTelegramClient(apiKey string) (*Telegram, error) {
 		Strava:            stravaClient,
 		AI:                ai,
 		APIKey:            apiKey,
-		CustomPromptState: make(map[int64]int64),
+		LastActivity:      make(map[int64]int64),
 		ActivitiesChannel: make(chan ActivityForUpdate, 10), // buffered channel
+		NameOptions:       make(map[int64]map[int64][]string),
 	}, nil
 }
 
@@ -244,20 +246,20 @@ func (tg *Telegram) setLanguageHandler(ctx context.Context, b *bot.Bot, update *
 }
 
 func (tg *Telegram) messageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	chatID := update.Message.Chat.ID
+	activityID, ok := tg.LastActivity[chatID]
+	if ok {
+		if tg.NameOptions[chatID] == nil {
+			tg.NameOptions[chatID] = make(map[int64][]string)
+		}
+	}
+
 	if strings.HasPrefix(update.Message.Text, "/") {
 		slog.Debug("this is a command, skipping message handler", "text", update.Message.Text)
 		return
 	}
-	chatID := update.Message.Chat.ID
-	activityID, ok := tg.CustomPromptState[chatID]
-	if !ok {
-		slog.Debug("received a message but no custom prompt state found for user", "chatID", chatID, "message", update.Message.Text)
-		tg.sendMessage(ctx, chatID, "I'm not sure what to do with this message.")
-		return
-	}
 
 	customPrompt := update.Message.Text
-	delete(tg.CustomPromptState, chatID)
 
 	activity, err := tg.DB.GetActivityById(activityID)
 	if err != nil {
@@ -284,17 +286,53 @@ func (tg *Telegram) messageHandler(ctx context.Context, b *bot.Bot, update *mode
 	slog.Info("Generated names with custom prompt", "activityID", activity.ID, "names", names)
 	tg.sendMessage(ctx, chatID, fmt.Sprintf(customPromptSuccessMessage, activity.Name))
 
-	formattedNames := utils.FormatActivityNames(names)
-	formattedNames = append(formattedNames, "0. Regenerate", "Enter custom prompt")
+	tg.NameOptions[chatID][activityID] = names
+	tg.LastActivity[chatID] = activityID
 
-	var inlineKeyboard [][]models.InlineKeyboardButton
-	for _, name := range formattedNames {
-		button := models.InlineKeyboardButton{
-			Text:         name,
-			CallbackData: fmt.Sprintf("activity %d:%s", activityID, tg.cleanName(name)),
+	var listText string
+	maxOptions := 9
+	for i, name := range names {
+		listText += fmt.Sprintf("%d. %s\n", i+1, name)
+		if i == maxOptions-1 {
+			break
 		}
-		inlineKeyboard = append(inlineKeyboard, []models.InlineKeyboardButton{button})
 	}
+	listText += "0. 🔄 Regenerate\nC. ✏️ Enter custom prompt"
+
+	msgText := "*Select a number with new name:*\n\n" + listText
+
+	tg.sendMessage(context.Background(), chatID, msgText)
+	if len(names) < maxOptions {
+		maxOptions = len(names)
+	}
+	var inlineKeyboard [][]models.InlineKeyboardButton
+	var row []models.InlineKeyboardButton
+	for i := 0; i < maxOptions; i++ {
+		button := models.InlineKeyboardButton{
+			Text:         fmt.Sprintf("%d", i+1),
+			CallbackData: fmt.Sprintf("%s:%d:%d", callbackPrefixActivity, activityID, i+1),
+		}
+		row = append(row, button)
+		if len(row) == 3 {
+			inlineKeyboard = append(inlineKeyboard, row)
+			row = []models.InlineKeyboardButton{}
+		}
+	}
+	if len(row) > 0 {
+		inlineKeyboard = append(inlineKeyboard, row)
+	}
+	// Add regenerate and custom prompt buttons as a final row
+	finalRow := []models.InlineKeyboardButton{
+		{
+			Text:         "🔄 Regenerate",
+			CallbackData: fmt.Sprintf("%s:%d:0", callbackPrefixActivity, activityID),
+		},
+		{
+			Text:         "✏️ Custom",
+			CallbackData: fmt.Sprintf("%s:%d:C", callbackPrefixActivity, activityID),
+		},
+	}
+	inlineKeyboard = append(inlineKeyboard, finalRow)
 
 	msg := &bot.SendMessageParams{
 		ChatID: chatID,
@@ -310,6 +348,10 @@ func (tg *Telegram) messageHandler(ctx context.Context, b *bot.Bot, update *mode
 }
 
 func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
+	// Store generated names in memory for this chatID/activityID
+	if tg.NameOptions[activity.ChatId] == nil {
+		tg.NameOptions[activity.ChatId] = make(map[int64][]string)
+	}
 	usr, err := tg.DB.GetUserByChatId(activity.ChatId)
 	if err != nil {
 		slog.Error("error while fetching user")
@@ -321,31 +363,33 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 		slog.Error("error while generating names", "err", err)
 		return
 	}
+	tg.NameOptions[activity.ChatId][activity.Activity.ID] = names
+	tg.LastActivity[activity.ChatId] = activity.Activity.ID
 
 	slog.Info("Generated names for activity", "activityID", activity.Activity.ID, "names", names)
 	tg.sendMessage(context.Background(), activity.ChatId, fmt.Sprintf(generatingBetterNamesMessage, activity.Activity.Name, activity.Activity.ID))
 
 	// Format names as a numbered list for the message
 	var listText string
+	maxOptions := 9
 	for i, name := range names {
 		listText += fmt.Sprintf("%d. %s\n", i+1, name)
+		if i == maxOptions-1 {
+			break
+		}
 	}
 	listText += "0. 🔄 Regenerate\nC. ✏️ Enter custom prompt"
 
 	msgText := "*Select a number with new name:*\n\n" + listText
 
-	// Send the formatted list as a message (with Markdown)
 	tg.sendMessage(context.Background(), activity.ChatId, msgText)
 
-	// Prepare inline keyboard with numbers and special options
-	// Limit to first 10 options
-	maxOptions := 10
 	if len(names) < maxOptions {
 		maxOptions = len(names)
 	}
 	// Arrange buttons in 3 columns
 	var inlineKeyboard [][]models.InlineKeyboardButton
-	row := []models.InlineKeyboardButton{}
+	var row []models.InlineKeyboardButton
 	for i := 0; i < maxOptions; i++ {
 		button := models.InlineKeyboardButton{
 			Text:         fmt.Sprintf("%d", i+1),
@@ -399,8 +443,12 @@ func (tg *Telegram) sendMessage(ctx context.Context, chatID int64, msg string) {
 }
 
 func (tg *Telegram) handleCallbackQuery(ctx context.Context, _ *bot.Bot, update *models.Update) {
+	// Now callback data is activity:<activityID>:<option>
+
 	chatID := update.CallbackQuery.From.ID
 	callbackData := update.CallbackQuery.Data
+
+	slog.Debug("received callback query", "chatID", chatID, "callbackData", callbackData)
 
 	parts := strings.Split(callbackData, ":")
 	if len(parts) < 3 || parts[0] != callbackPrefixActivity {
@@ -413,18 +461,6 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, _ *bot.Bot, update 
 	activityID, err := strconv.ParseInt(activityIDStr, 10, 64)
 	if err != nil {
 		tg.sendMessage(ctx, chatID, "Invalid activity ID.")
-		return
-	}
-
-	usr, err := tg.DB.GetUserByChatId(chatID)
-	if err != nil {
-		tg.sendMessage(ctx, chatID, "User not found.")
-		return
-	}
-
-	activity, err := tg.DB.GetActivityById(activityID)
-	if err != nil {
-		tg.sendMessage(ctx, chatID, "Activity not found.")
 		return
 	}
 
@@ -443,13 +479,23 @@ func (tg *Telegram) handleCallbackQuery(ctx context.Context, _ *bot.Bot, update 
 		return
 	}
 
-	names, err := tg.AI.GenerateBetterNames(*activity, usr.Language)
-	if err != nil || idx > len(names) {
-		tg.sendMessage(ctx, chatID, "Could not retrieve activity names.")
+	// Retrieve the selected name from memory
+	nameOptions, ok := tg.NameOptions[chatID]
+	if !ok {
+		tg.sendMessage(ctx, chatID, "No name options found. Please regenerate.")
 		return
 	}
-	selectedName := names[idx-1]
-
+	options, ok := nameOptions[activityID]
+	if !ok || idx > len(options) {
+		tg.sendMessage(ctx, chatID, "Invalid selection.")
+		return
+	}
+	selectedName := options[idx-1]
+	// Clean up after selection
+	delete(nameOptions, activityID)
+	if len(nameOptions) == 0 {
+		delete(tg.NameOptions, chatID)
+	}
 	tg.handleActivitySelection(ctx, chatID, activityID, selectedName)
 }
 
@@ -460,7 +506,7 @@ func (tg *Telegram) handleCustomPromptSetup(ctx context.Context, chatID int64, a
 		tg.sendMessage(ctx, chatID, defaultBotErrorMessage)
 		return
 	}
-	tg.CustomPromptState[chatID] = activityID
+	tg.LastActivity[chatID] = activityID
 	msg := fmt.Sprintf(customPromptInstruction, activity.Name)
 	tg.sendMessage(ctx, chatID, msg)
 	slog.Info("Set custom prompt state for user", "chatID", chatID, "activityID", activityID)
