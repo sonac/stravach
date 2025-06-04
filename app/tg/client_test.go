@@ -1,9 +1,16 @@
 package tg
 
 import (
-	"regexp"
-	"strings"
+	"context"
+	"fmt"
+	dbModels "stravach/app/storage/models"
+	strava "stravach/app/strava"
+	"stravach/mocks"
 	"testing"
+
+	bot "github.com/go-telegram/bot"
+	botModels "github.com/go-telegram/bot/models"
+	"github.com/stretchr/testify/mock"
 )
 
 // TestCleanName tests the cleanName method of the Telegram struct.
@@ -67,15 +74,138 @@ func TestCleanName(t *testing.T) {
 	}
 }
 
-// Helper function to manually apply the regex logic for verification of test cases,
-// as the original cleanName function is unexported if this test were in tg_test package.
-// Since it's in 'tg' package, we can directly call tgInstance.cleanName.
-// This helper is more for documenting the expected behavior based on the regex.
-func expectedCleanNameByRegex(name string) string {
-	name = strings.TrimSpace(name)
-	re := regexp.MustCompile(`[^a-zA-Z0-9\s\-_.,!?'"()&]+`)
-	name = re.ReplaceAllString(name, "")
-	re = regexp.MustCompile(`\s+`)
-	name = re.ReplaceAllString(name, " ")
-	return name
+func TestHandleCallbackQuery_NumberSelection(t *testing.T) {
+	mbot := &mocks.BotSender{}
+	mdb := &mocks.DBStore{}
+	mai := &mocks.AI{}
+	mstrava := &mocks.StravaService{}
+
+	oldActivity := &dbModels.UserActivity{ID: 99, Name: "Old Name"}
+
+	mdb.On("GetUserByChatId", int64(123)).Return(&dbModels.User{TelegramChatId: 123, Language: "en"}, nil)
+	mdb.On("GetActivityById", int64(99)).Return(oldActivity, nil)
+	mdb.On("UpdateUser", mock.Anything).Return(nil)
+	mdb.On("UpdateUserActivity", mock.Anything).Return(nil)
+
+	mai.On("GenerateBetterNames", *oldActivity, "en").Return([]string{"Morning Ride", "Evening Run"}, nil)
+
+	mbot.On("SendMessage", mock.Anything, mock.Anything).Return(&botModels.Message{}, nil)
+	mbot.On("SendMessage", mock.Anything, mock.Anything).Return(&botModels.Message{}, nil)
+	mbot.On("SendMessage", mock.Anything, mock.Anything).Return(&botModels.Message{}, nil)
+
+	mstrava.On("RefreshAccessToken", mock.AnythingOfType("string")).Return(&strava.AuthResp{}, nil)
+	mstrava.On("UpdateActivity", mock.Anything, mock.MatchedBy(func(a dbModels.UserActivity) bool {
+		return a.ID == 99 && a.Name == "Evening Run"
+	})).Return(&dbModels.UserActivity{}, nil)
+
+	tgInstance := &Telegram{
+		Bot:    mbot,
+		DB:     mdb,
+		AI:     mai,
+		Strava: mstrava,
+	}
+	update := &botModels.Update{
+		CallbackQuery: &botModels.CallbackQuery{
+			From: botModels.User{ID: 123},
+			Data: "activity:99:2",
+		},
+	}
+	tgInstance.handleCallbackQuery(context.Background(), nil, update)
+	mstrava.AssertCalled(t, "UpdateActivity", mock.Anything, mock.MatchedBy(func(a dbModels.UserActivity) bool {
+		return a.ID == 99 && a.Name == "Evening Run"
+	}))
+
+}
+
+func TestHandleCallbackQuery_Regenerate(t *testing.T) {
+	mbot := &mocks.BotSender{}
+	mdb := &mocks.DBStore{}
+	mai := &mocks.AI{}
+	mstrava := &mocks.StravaService{}
+
+	user := &dbModels.User{TelegramChatId: 123, Language: "en"}
+	activity := &dbModels.UserActivity{ID: 99, Name: "Old Name"}
+
+	mdb.On("GetUserByChatId", int64(123)).Return(user, nil)
+	mdb.On("GetActivityById", int64(99)).Return(activity, nil)
+
+	mbot.On("SendMessage", context.Background(), mock.AnythingOfType("*bot.SendMessageParams")).Return(&botModels.Message{}, nil).Maybe()
+	mbot.On("SendMessage", mock.Anything, mock.Anything).Return(&botModels.Message{}, nil)
+
+	tgInstance := &Telegram{
+		Bot:               mbot,
+		DB:                mdb,
+		AI:                mai,
+		Strava:            mstrava,
+		CustomPromptState: make(map[int64]int64),
+		ActivitiesChannel: make(chan ActivityForUpdate, 1), // Add channel if needed by flow
+	}
+	update := &botModels.Update{
+		CallbackQuery: &botModels.CallbackQuery{
+			From: botModels.User{ID: 123},
+			Data: "activity:99:0",
+		},
+	}
+	tgInstance.handleCallbackQuery(context.Background(), nil, update)
+
+	mdb.AssertExpectations(t)
+	mbot.AssertExpectations(t)
+	mstrava.AssertExpectations(t)
+}
+
+func TestHandleCallbackQuery_CustomPrompt(t *testing.T) {
+	mbot := &mocks.BotSender{}
+	mdb := &mocks.DBStore{}
+	mai := &mocks.AI{}
+	mstrava := &mocks.StravaService{}
+
+	user := &dbModels.User{TelegramChatId: 123, Language: "en"}
+	activity := &dbModels.UserActivity{ID: 99, Name: "Old Name"}
+
+	mdb.On("GetUserByChatId", int64(123)).Return(user, nil)
+	mdb.On("GetActivityById", int64(99)).Return(activity, nil)
+	expectedMsgText := fmt.Sprintf(customPromptInstruction, activity.Name)
+	mbot.On("SendMessage", context.Background(), mock.MatchedBy(func(params *bot.SendMessageParams) bool {
+		return params.ChatID == int64(123) && params.Text == expectedMsgText
+	})).Return(&botModels.Message{}, nil)
+	mbot.On("SendMessage", mock.Anything, mock.Anything).Return(&botModels.Message{}, nil)
+	tgInstance := &Telegram{
+		Bot:               mbot,
+		DB:                mdb,
+		AI:                mai,
+		Strava:            mstrava,
+		CustomPromptState: make(map[int64]int64),
+	}
+	update := &botModels.Update{
+		CallbackQuery: &botModels.CallbackQuery{
+			From: botModels.User{ID: 123},
+			Data: "activity:99:C",
+		},
+	}
+	tgInstance.handleCallbackQuery(context.Background(), nil, update)
+
+	mdb.AssertExpectations(t)
+	mbot.AssertExpectations(t)
+	mai.AssertExpectations(t)
+	mstrava.AssertExpectations(t)
+}
+
+func TestHandleCallbackQuery_InvalidData(t *testing.T) {
+	mbot := &mocks.BotSender{}
+	mdb := &mocks.DBStore{}
+	mai := &mocks.AI{}
+	// No need to set up expectations for this test, as invalid callback data should result in an early return
+	mbot.On("SendMessage", mock.Anything, mock.Anything).Return(&botModels.Message{}, nil)
+	tgInstance := &Telegram{Bot: mbot, DB: mdb, AI: mai}
+	update := &botModels.Update{
+		CallbackQuery: &botModels.CallbackQuery{
+			From: botModels.User{ID: 123},
+			Data: "invalid:data",
+		},
+	}
+	tgInstance.handleCallbackQuery(context.Background(), nil, update)
+
+	mbot.AssertExpectations(t)
+	mdb.AssertExpectations(t)
+	mai.AssertExpectations(t)
 }

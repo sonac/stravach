@@ -72,12 +72,12 @@ func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity, language str
 	return ai.sendRequest(prompt)
 }
 
-func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, customPrompt string) ([]string, error) {
-	prompt := fmt.Sprintf("Generate up to three, new-line separated names for the following activity: %s, of type %s, duration: %d seconds. Use this also as an input for prompt: %s. "+
+func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, lang, prompt string) ([]string, error) {
+	fullPrompt := fmt.Sprintf("Generate up to three, new-line separated names for the following activity: %s, of type %s, duration: %d seconds. Use this also as an input for prompt: %s. Language: %s. "+
 		"This is for my Strava. Based on the suggested input - deduct if it should be included into the output. And if it looks like already a name - just return it. "+
 		"If it's a long message that contains something that looks like a name - return it.",
-		activity.Name, activity.ActivityType, activity.ElapsedTime, customPrompt)
-	return ai.sendRequest(prompt)
+		activity.Name, activity.ActivityType, activity.ElapsedTime, prompt, lang)
+	return ai.sendRequest(fullPrompt)
 }
 
 func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
