@@ -103,6 +103,9 @@ func TestHandleCallbackQuery_NumberSelection(t *testing.T) {
 		DB:     mdb,
 		AI:     mai,
 		Strava: mstrava,
+		NameOptions: map[int64]map[int64][]string{
+			123: {99: {"Morning Ride", "Evening Run"}},
+		},
 	}
 	update := &botModels.Update{
 		CallbackQuery: &botModels.CallbackQuery{
@@ -123,10 +126,8 @@ func TestHandleCallbackQuery_Regenerate(t *testing.T) {
 	mai := &mocks.AI{}
 	mstrava := &mocks.StravaService{}
 
-	user := &dbModels.User{TelegramChatId: 123, Language: "en"}
 	activity := &dbModels.UserActivity{ID: 99, Name: "Old Name"}
 
-	mdb.On("GetUserByChatId", int64(123)).Return(user, nil)
 	mdb.On("GetActivityById", int64(99)).Return(activity, nil)
 
 	mbot.On("SendMessage", context.Background(), mock.AnythingOfType("*bot.SendMessageParams")).Return(&botModels.Message{}, nil).Maybe()
@@ -137,8 +138,11 @@ func TestHandleCallbackQuery_Regenerate(t *testing.T) {
 		DB:                mdb,
 		AI:                mai,
 		Strava:            mstrava,
-		CustomPromptState: make(map[int64]int64),
+		LastActivity:      make(map[int64]int64),
 		ActivitiesChannel: make(chan ActivityForUpdate, 1), // Add channel if needed by flow
+		NameOptions: map[int64]map[int64][]string{
+			123: {},
+		},
 	}
 	update := &botModels.Update{
 		CallbackQuery: &botModels.CallbackQuery{
@@ -159,10 +163,8 @@ func TestHandleCallbackQuery_CustomPrompt(t *testing.T) {
 	mai := &mocks.AI{}
 	mstrava := &mocks.StravaService{}
 
-	user := &dbModels.User{TelegramChatId: 123, Language: "en"}
 	activity := &dbModels.UserActivity{ID: 99, Name: "Old Name"}
 
-	mdb.On("GetUserByChatId", int64(123)).Return(user, nil)
 	mdb.On("GetActivityById", int64(99)).Return(activity, nil)
 	expectedMsgText := fmt.Sprintf(customPromptInstruction, activity.Name)
 	mbot.On("SendMessage", context.Background(), mock.MatchedBy(func(params *bot.SendMessageParams) bool {
@@ -170,11 +172,14 @@ func TestHandleCallbackQuery_CustomPrompt(t *testing.T) {
 	})).Return(&botModels.Message{}, nil)
 	mbot.On("SendMessage", mock.Anything, mock.Anything).Return(&botModels.Message{}, nil)
 	tgInstance := &Telegram{
-		Bot:               mbot,
-		DB:                mdb,
-		AI:                mai,
-		Strava:            mstrava,
-		CustomPromptState: make(map[int64]int64),
+		Bot:          mbot,
+		DB:           mdb,
+		AI:           mai,
+		Strava:       mstrava,
+		LastActivity: make(map[int64]int64),
+		NameOptions: map[int64]map[int64][]string{
+			123: {},
+		},
 	}
 	update := &botModels.Update{
 		CallbackQuery: &botModels.CallbackQuery{
