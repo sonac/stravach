@@ -45,10 +45,10 @@ func (s *SQLiteStore) createTables() error {
 	userTable := `
 		    CREATE TABLE IF NOT EXISTS users (
 		      id INTEGER PRIMARY KEY AUTOINCREMENT,
-		      strava_id INTEGER UNIQUE NOT NULL,
+		      strava_id INTEGER,
 		      telegram_chat_id INTEGER UNIQUE NOT NULL,
-		      username TEXT NOT NULL,
-		      email TEXT NOT NULL,
+		      username TEXT,
+		      email TEXT,
 		      strava_refresh_token TEXT,
 		      strava_access_token TEXT,
 		      strava_access_code TEXT,
