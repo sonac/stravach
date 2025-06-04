@@ -5,6 +5,7 @@ import (
 	"stravach/app/storage/models"
 	"stravach/app/strava"
 	"stravach/app/tg"
+	"stravach/mocks"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,28 +61,11 @@ func (mdb *MockDB) IsActivityExists(activityId int64) (bool, error) {
 	return args.Get(0).(bool), args.Error(1)
 }
 
-type MockStrava struct {
-	mock.Mock
-}
-
-func (ms *MockStrava) RefreshAccessToken(refreshToken string) (*strava.AuthResp, error) {
-	args := ms.Called(refreshToken)
-	return args.Get(0).(*strava.AuthResp), args.Error(1)
-}
-
-func (ms *MockStrava) GetActivity(accessToken string, activityId int64) (*models.UserActivity, error) {
-	args := ms.Called(accessToken, activityId)
-	return args.Get(0).(*models.UserActivity), args.Error(1)
-}
-
-func (ms *MockStrava) Authorize(accessCode string) (*strava.AuthResp, error) {
-	args := ms.Called(accessCode)
-	return args.Get(0).(*strava.AuthResp), args.Error(1)
-}
+// Use mockery-generated StravaService mock from mocks package
 
 func TestProcessActivity_ActivityExists(t *testing.T) {
 	mockDB := new(MockDB)
-	mockStrava := new(MockStrava)
+	mockStrava := &mocks.StravaService{}
 	activitiesChannel := make(chan tg.ActivityForUpdate, 1)
 
 	h := &HttpHandler{
@@ -106,7 +90,7 @@ func TestProcessActivity_ActivityExists(t *testing.T) {
 
 func TestProcessActivity_NewActivity(t *testing.T) {
 	mockDB := new(MockDB)
-	mockStrava := new(MockStrava)
+	mockStrava := &mocks.StravaService{}
 	activitiesChannel := make(chan tg.ActivityForUpdate, 1)
 
 	h := &HttpHandler{
@@ -136,7 +120,7 @@ func TestProcessActivity_NewActivity(t *testing.T) {
 
 func TestProcessActivity_UserAuthRequired(t *testing.T) {
 	mockDB := new(MockDB)
-	mockStrava := new(MockStrava)
+	mockStrava := &mocks.StravaService{}
 	activitiesChannel := make(chan tg.ActivityForUpdate, 1)
 
 	h := &HttpHandler{
@@ -171,7 +155,7 @@ func TestProcessActivity_UserAuthRequired(t *testing.T) {
 
 func TestProcessActivity_StravaFetchError(t *testing.T) {
 	mockDB := new(MockDB)
-	mockStrava := new(MockStrava)
+	mockStrava := &mocks.StravaService{}
 	activitiesChannel := make(chan tg.ActivityForUpdate, 1)
 
 	h := &HttpHandler{

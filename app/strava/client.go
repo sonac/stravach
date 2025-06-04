@@ -57,13 +57,15 @@ func init() {
 	Handler = &http.Client{}
 }
 
-type Strava interface {
+type StravaService interface {
 	Authorize(accessCode string) (*AuthResp, error)
 	RefreshAccessToken(refreshToken string) (*AuthResp, error)
 	GetActivity(accessToken string, activityId int64) (*models.UserActivity, error)
+	GetAllActivities(accessToken string) (*[]models.UserActivity, error)
+	UpdateActivity(accessToken string, activity models.UserActivity) (*models.UserActivity, error)
 }
 
-var _ Strava = (*Client)(nil)
+var _ StravaService = (*Client)(nil)
 
 func NewStravaClient() *Client {
 	clientId := os.Getenv("STRAVA_CLIENT_ID")
@@ -111,7 +113,7 @@ func (c *Client) GetActivity(accessToken string, activityId int64) (*models.User
 	return &activity, nil
 }
 
-func GetAllActivities(accessToken string) (*[]models.UserActivity, error) {
+func (c *Client) GetAllActivities(accessToken string) (*[]models.UserActivity, error) {
 	curPage := 1
 	var totalActivities []models.UserActivity
 	for {
@@ -131,7 +133,7 @@ func GetAllActivities(accessToken string) (*[]models.UserActivity, error) {
 	return &totalActivities, nil
 }
 
-func UpdateActivity(accessToken string, activity models.UserActivity) (*models.UserActivity, error) {
+func (c *Client) UpdateActivity(accessToken string, activity models.UserActivity) (*models.UserActivity, error) {
 	url := fmt.Sprintf("%s/%d", activityUrl, activity.ID)
 	updActivity := UpdatableActivity{Name: activity.Name}
 	body, err := json.Marshal(updActivity)
@@ -182,7 +184,7 @@ func getActivities(accessToken string, page int) ([]models.UserActivity, error) 
 		slog.Error("error occurred during request handling")
 		return nil, err
 	}
-	if resp != nil && resp.StatusCode == 401 {
+	if resp == nil || resp.StatusCode == 401 {
 		slog.Error("received unsuccessful response")
 		return nil, errors.New(utils.UNAUTHORIZED)
 	}

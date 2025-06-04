@@ -24,7 +24,7 @@ type HttpHandler struct {
 	StravaToken       string
 	TgApiKey          string
 	StaticDir         string
-	Strava            strava.Strava
+	Strava            strava.StravaService
 	DB                storage.Store
 	AI                *openai.OpenAI
 	ActivitiesChannel chan tg.ActivityForUpdate
@@ -136,7 +136,6 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		slog.Error(fmt.Sprintf("error while updating user from chatId %s", err))
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Error occured during callback")
 		return
 	}
 }
@@ -215,9 +214,6 @@ func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//slog.Debug("got user activities", "userActivities", userActivities)
-
-	// Generate the HTML for the activities grid
 	var activitiesHTML strings.Builder
 	for _, activity := range userActivities {
 		activitiesHTML.WriteString(fmt.Sprintf(`
@@ -245,8 +241,11 @@ func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
 
 	// Write the generated HTML to the response
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(activitiesHTML.String()))
 	w.WriteHeader(http.StatusOK)
+	_, err = w.Write([]byte(activitiesHTML.String()))
+	if err != nil {
+		return
+	}
 }
 
 func (h *HttpHandler) updateActivity(w http.ResponseWriter, r *http.Request) {
@@ -283,9 +282,12 @@ func (h *HttpHandler) updateActivity(w http.ResponseWriter, r *http.Request) {
 	h.ActivitiesChannel <- afu
 	slog.Info("activity sent to channel", "activityId", activity.ID)
 
-	// Respond with a success message
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Activity sent to the channel successfully"))
+	_, err = w.Write([]byte("Activity sent to the channel successfully"))
+	if err != nil {
+		slog.Error("error while writing to response", "err", err)
+		return
+	}
 }
 
 func (h *HttpHandler) webhookVerify(w http.ResponseWriter, r *http.Request) {

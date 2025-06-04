@@ -277,7 +277,7 @@ func (s *SQLiteStore) UpdateUser(user *models.User) error {
 	return err
 }
 
-func (s *SQLiteStore) CreateUserActivities(userId int64, activities *[]models.UserActivity) error {
+func (s *SQLiteStore) CreateUserActivities(activities []*models.UserActivity) error {
 	query := `
     INSERT INTO user_activities (
         id, name, user_id, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed, is_updated
@@ -294,14 +294,14 @@ func (s *SQLiteStore) CreateUserActivities(userId int64, activities *[]models.Us
         average_speed = excluded.average_speed,
 		is_updated = excluded.is_updated
   `
-	for _, a := range *activities {
-		_, err := s.DB.Exec(query, a.ID, a.Name, userId, a.Distance, a.MovingTime, a.ElapsedTime, a.ActivityType, a.StartDate, a.AverageHeartrate, a.AverageSpeed, a.IsUpdated)
+	for _, a := range activities {
+		_, err := s.DB.Exec(query, a.ID, a.Name, a.UserID, a.Distance, a.MovingTime, a.ElapsedTime, a.ActivityType, a.StartDate, a.AverageHeartrate, a.AverageSpeed, a.IsUpdated)
 		if err != nil {
 			slog.Error("error while creating user activities")
 			return err
 		}
 	}
-	slog.Info(fmt.Sprintf("inserted %d activities", len(*activities)))
+	slog.Info(fmt.Sprintf("inserted %d activities", len(activities)))
 	return nil
 }
 
