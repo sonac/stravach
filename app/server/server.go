@@ -138,6 +138,22 @@ func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	resp := `<!DOCTYPE html>
+		<html lang="en">
+		<head><meta charset="UTF-8"><title>Auth Success</title></head>
+		<body>
+		<h2>Authentication successful!</h2>
+		<p>You may now close this window.</p>
+		</body>
+		</html>`
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write([]byte(resp))
+	if err != nil {
+		slog.Error("error while writing to response", "err", err)
+		return
+	}
 }
 
 func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
