@@ -24,7 +24,6 @@ func main() {
 	ctx := context.Background()
 	go srv.Start()
 	if env != "DEV" {
-		// do not start telegram on dev
 		go telegram.Start(ctx)
 	}
 

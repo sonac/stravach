@@ -65,7 +65,6 @@ func (h *HttpHandler) Init() {
 }
 
 func (h *HttpHandler) activitiesPageHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse user ID from URL or session (assuming user ID is passed via URL)
 	userIDStr := strings.TrimPrefix(r.URL.Path, "/user/")
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
@@ -74,7 +73,6 @@ func (h *HttpHandler) activitiesPageHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Load the HTML template
 	tmplPath := filepath.Join("templates", "activities.html")
 	tmpl, err := template.ParseFiles(tmplPath)
 	if err != nil {
@@ -83,7 +81,6 @@ func (h *HttpHandler) activitiesPageHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Execute the template with user ID
 	data := struct {
 		UserID int64
 	}{
@@ -165,7 +162,6 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decode the request body
 	var payload TgPayload
 	err := json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
@@ -175,7 +171,6 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Debug("got payload", "%+v", payload.User.Id)
-	// Check if the user exists in the database
 	usr, err := h.DB.GetUserByChatId(payload.User.Id)
 	if err != nil {
 		slog.Error("error fetching user from database", "error", err)
@@ -188,7 +183,6 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate a JWT token
 	token, err := h.JWT.GenerateJWTForUser(usr.ID)
 	if err != nil {
 		slog.Error("error generating JWT token", "error", err)
@@ -196,7 +190,6 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set the JWT token as a cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:    "auth_token",
 		Value:   token.Value,
@@ -245,17 +238,16 @@ func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
             <button hx-post="/activity/%d" hx-swap="none">Update Activity</button>
         </div>`,
 			activity.Name,
-			activity.Distance/1000,  // Convert to kilometers
-			activity.MovingTime/60,  // Convert to minutes
-			activity.ElapsedTime/60, // Convert to minutes
+			activity.Distance/1000,
+			activity.MovingTime/60,
+			activity.ElapsedTime/60,
 			activity.ActivityType,
 			activity.StartDate.Format("2006-01-02 15:04:05"),
 			activity.AverageHeartrate,
-			activity.AverageSpeed*3.6, // Convert to km/h
+			activity.AverageSpeed*3.6,
 			activity.ID))
 	}
 
-	// Write the generated HTML to the response
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write([]byte(activitiesHTML.String()))
@@ -274,7 +266,6 @@ func (h *HttpHandler) updateActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the activity from the database by its ID
 	activity, err := h.DB.GetActivityById(activityId)
 	if err != nil {
 		slog.Error("failed to fetch activity", "error", err)
@@ -282,7 +273,6 @@ func (h *HttpHandler) updateActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the user associated with the activity
 	usr, err := h.DB.GetUserById(activity.UserID)
 	if err != nil || usr == nil {
 		slog.Error("error while getting user from DB", "err", err)
