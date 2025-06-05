@@ -239,7 +239,7 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("got getActivities request")
-	usrIdStr := strings.TrimPrefix(r.URL.Path, "/activities/")
+	usrIdStr := strings.TrimPrefix(r.URL.Path, "/api/activities/")
 	usrId, err := strconv.ParseInt(usrIdStr, 10, 64)
 	if err != nil {
 		slog.Error(err.Error())
@@ -431,9 +431,9 @@ func (h *HttpHandler) Start() {
 	http.HandleFunc("/auth/", h.authHandler)
 	http.HandleFunc("/auth-callback/", h.authCallbackHandler)
 	http.HandleFunc("/tg-auth", h.tgAuthHandler)
-	http.HandleFunc("/activities/", h.getActivities)
+	http.HandleFunc("/api/activities/", h.getActivities)
 	http.HandleFunc("/user/", h.activitiesPageHandler)
-	http.HandleFunc("/activity/", h.updateActivity)
+	http.HandleFunc("/api/activity/", h.updateActivity)
 	http.HandleFunc("/webhook", h.webhook)
 
 	slog.Info("Starting server on port " + h.Port)
