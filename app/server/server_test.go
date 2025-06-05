@@ -41,7 +41,7 @@ func (mdb *MockDB) GetUserByStravaId(stravaId int64) (*models.User, error) {
 	return args.Get(0).(*models.User), args.Error(1)
 }
 
-func (mdb *MockDB) GetUserActivities(userId int64) ([]models.UserActivity, error) {
+func (mdb *MockDB) GetUserActivities(userId int64, limit int) ([]models.UserActivity, error) {
 	args := mdb.Called(userId)
 	return args.Get(0).([]models.UserActivity), args.Error(1)
 }

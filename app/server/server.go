@@ -162,6 +162,43 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Localhost/dev shortcut: if request is from localhost, log in user ID 1
+	isLocal := func() bool {
+		host := r.Host
+		remote := r.RemoteAddr
+		origin := r.Header.Get("Origin")
+		referer := r.Header.Get("Referer")
+		for _, v := range []string{host, remote, origin, referer} {
+			if strings.Contains(v, "localhost") || strings.Contains(v, "127.0.0.1") {
+				return true
+			}
+		}
+		return false
+	}()
+
+	if isLocal {
+		usr, err := h.DB.GetUserById(1)
+		if err != nil || usr == nil {
+			slog.Error("Local dev login failed: user 1 not found", "err", err)
+			http.Error(w, "Local dev login failed: user 1 not found", http.StatusInternalServerError)
+			return
+		}
+		token, err := h.JWT.GenerateJWTForUser(usr.ID)
+		if err != nil {
+			slog.Error("error generating JWT token", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		http.SetCookie(w, &http.Cookie{
+			Name:    "auth_token",
+			Value:   token.Value,
+			Expires: token.ExpiresAt,
+			Path:    "/",
+		})
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	var payload TgPayload
 	err := json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
@@ -201,57 +238,34 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
-	chatIdStr := strings.TrimPrefix(r.URL.Path, "/activities/")
-	chatId, err := strconv.ParseInt(chatIdStr, 10, 64)
+	slog.Debug("got getActivities request")
+	usrIdStr := strings.TrimPrefix(r.URL.Path, "/activities/")
+	usrId, err := strconv.ParseInt(usrIdStr, 10, 64)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	usr, err := h.DB.GetUserByChatId(chatId)
+	usr, err := h.DB.GetUserById(usrId)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	userActivities, err := h.DB.GetUserActivities(usr.ID)
+	userActivities, err := h.DB.GetUserActivities(usr.ID, 30)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	var activitiesHTML strings.Builder
-	for _, activity := range userActivities {
-		activitiesHTML.WriteString(fmt.Sprintf(`
-        <div class="card">
-            <h3>%s</h3>
-            <p><strong>Distance:</strong> %.2f km</p>
-            <p><strong>Moving Time:</strong> %d mins</p>
-            <p><strong>Elapsed Time:</strong> %d mins</p>
-            <p><strong>Type:</strong> %s</p>
-            <p><strong>Start Date:</strong> %s</p>
-            <p><strong>Avg Heartrate:</strong> %.2f bpm</p>
-            <p><strong>Avg Speed:</strong> %.2f km/h</p>
-            <button hx-post="/activity/%d" hx-swap="none">Update Activity</button>
-        </div>`,
-			activity.Name,
-			activity.Distance/1000,
-			activity.MovingTime/60,
-			activity.ElapsedTime/60,
-			activity.ActivityType,
-			activity.StartDate.Format("2006-01-02 15:04:05"),
-			activity.AverageHeartrate,
-			activity.AverageSpeed*3.6,
-			activity.ID))
-	}
-
-	w.Header().Set("Content-Type", "text/html")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write([]byte(activitiesHTML.String()))
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(userActivities); err != nil {
+		slog.Error(err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 }

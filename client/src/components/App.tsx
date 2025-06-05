@@ -1,11 +1,14 @@
 import TelegramLoginButton, { TelegramUser } from "./TelegramAuth";
 import "./App.css";
 import { Button } from "./ui/button.tsx";
-import { Routes, Route, Link, useNavigate } from "react-router-dom"; 
-import ActivitiesPage from "../pages/ActivitiesPage"; 
-import UserProfilePage from "../pages/UserProfilePage"; 
+import { Routes, Route, Link, useNavigate } from "react-router-dom";
+import ActivitiesPage from "../pages/ActivitiesPage";
+import UserProfilePage from "../pages/UserProfilePage";
 
-function onTelegramAuth(user: TelegramUser, navigate: ReturnType<typeof useNavigate>) { 
+function onTelegramAuth(
+  user: TelegramUser,
+  navigate: ReturnType<typeof useNavigate>,
+) {
   const payload = {
     user: {
       id: user.id,
@@ -32,7 +35,7 @@ function onTelegramAuth(user: TelegramUser, navigate: ReturnType<typeof useNavig
     })
     .then((data) => {
       console.log("Authentication successful:", data);
-      navigate(`/user/${user.id}`); 
+      navigate(`/user/${user.id}`);
     })
     .catch((error) => {
       console.error("Error:", error);
@@ -41,19 +44,65 @@ function onTelegramAuth(user: TelegramUser, navigate: ReturnType<typeof useNavig
 }
 
 const HomePage = () => {
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
   return (
     <>
-      <section className="bg-blue-600 text-white py-16 text-center">
-        <h1 className="text-4xl font-bold mb-4">Make Every Workout Memorable</h1>
-        <p className="text-lg mb-6">Automatically generate creative names for your Strava activities</p>
-        <Button className="px-28 py-14 text-lg font-bold rounded-lg shadow-lg" onClick={() => window.open("https://t.me/strava_snitch_bot", "_blank")}>
-          Try the Bot
-        </Button>
-        <TelegramLoginButton
-          botName="strava_snitch_bot"
-          dataOnauth={(user: TelegramUser) => onTelegramAuth(user, navigate)} 
-        />
+      <section className="bg-blue-600 text-white py-16 text-center flex flex-col items-center justify-center">
+        <h1 className="text-4xl font-bold mb-4">
+          Make Every Workout Memorable
+        </h1>
+        <p className="text-lg mb-6">
+          Automatically generate creative names for your Strava activities
+        </p>
+        <div className="flex flex-col md:flex-row gap-6 items-center justify-center mb-8">
+          <Button
+            className="px-12 py-5 text-lg font-bold rounded-lg shadow-lg bg-orange-500 hover:bg-orange-600 transition"
+            onClick={() =>
+              window.open("https://t.me/strava_snitch_bot", "_blank")
+            }
+          >
+            Try the Bot
+          </Button>
+          <span className="text-white text-lg font-semibold">or</span>
+          <div className="flex flex-col items-center">
+            <span className="mb-2 text-base">
+              Sign in to manage your activities:
+            </span>
+            {window.location.hostname === "localhost" ||
+            window.location.hostname === "127.0.0.1" ? (
+              <Button
+                className="px-8 py-3 text-lg font-bold rounded-lg shadow-lg bg-green-600 hover:bg-green-700 transition"
+                onClick={async () => {
+                  const payload = {
+                    user: {
+                      id: 1,
+                      first_name: "Dev",
+                      last_name: "User",
+                      username: "devuser",
+                    },
+                  };
+                  await fetch("/tg-auth", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                    credentials: "include",
+                  });
+                  navigate("/user/1");
+                }}
+              >
+                Dev Login (Localhost)
+              </Button>
+            ) : (
+              <TelegramLoginButton
+                botName="strava_snitch_bot"
+                buttonSize="large"
+                dataOnauth={(user: TelegramUser) =>
+                  onTelegramAuth(user, navigate)
+                }
+              />
+            )}
+          </div>
+        </div>
       </section>
       <section className="py-16 bg-white">
         <div className="container mx-auto text-center">
@@ -126,16 +175,41 @@ const HomePage = () => {
 function App() {
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav style={{ backgroundColor: '#333', padding: '10px 20px', color: 'white' }}>
-        <ul style={{ listStyleType: 'none', margin: 0, padding: 0, display: 'flex', gap: '20px' }}>
-          <li><Link to="/" style={{ color: 'white', textDecoration: 'none' }}>Home</Link></li>
-          <li><Link to="/activities" style={{ color: 'white', textDecoration: 'none' }}>Activities</Link></li>
+      <nav
+        style={{
+          backgroundColor: "#333",
+          padding: "10px 20px",
+          color: "white",
+        }}
+      >
+        <ul
+          style={{
+            listStyleType: "none",
+            margin: 0,
+            padding: 0,
+            display: "flex",
+            gap: "20px",
+          }}
+        >
+          <li>
+            <Link to="/" style={{ color: "white", textDecoration: "none" }}>
+              Home
+            </Link>
+          </li>
+          <li>
+            <Link
+              to="/activities"
+              style={{ color: "white", textDecoration: "none" }}
+            >
+              Activities
+            </Link>
+          </li>
         </ul>
       </nav>
 
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/activities" element={<ActivitiesPage />} />
+        <Route path="/activities/:userId" element={<ActivitiesPage />} />
         <Route path="/user/:userId" element={<UserProfilePage />} />
       </Routes>
     </div>

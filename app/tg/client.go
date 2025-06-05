@@ -184,7 +184,6 @@ func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models
 		Text:      replyMsg,
 		ParseMode: models.ParseModeMarkdown,
 	})
-
 	if err != nil {
 		slog.Error("failed to send auth message", "err", err, "chatID", chatID)
 	}
@@ -603,7 +602,6 @@ func (tg *Telegram) refreshActivitiesForUser(usr *dbModels.User) error {
 		return err
 	}
 
-	tg.sendMessage(context.Background(), usr.TelegramChatId, "activities are updated")
 	return nil
 }
 

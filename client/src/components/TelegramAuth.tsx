@@ -99,7 +99,13 @@ const TelegramLoginButton: React.FC<Props> = ({
     dataAuthUrl,
   ]);
 
-  return <div ref={ref} className="px-6 py-3 opacity-0 hover:opacity-100 transition-opacity duration-300 w-[10vw] ml-[5rem]" {...wrapperProps} />;
+  return (
+    <div
+      ref={ref}
+      className="flex justify-center items-center my-6"
+      {...wrapperProps}
+    />
+  );
 };
 
 TelegramLoginButton.propTypes = {
