@@ -1,152 +1,204 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 
 interface Activity {
-  id: string;
+  id: number;
   name: string;
-  date: string;
+  start_date: string;
   distance: number;
   type: string;
-  generatedName?: string;
-  generationStatus?: 'idle' | 'pending' | 'success' | 'error';
+  average_heartrate?: number;
+  average_speed?: number;
+  moving_time?: number;
+  elapsed_time?: number;
+  is_updated?: boolean;
+  generationStatus?: "idle" | "pending" | "success" | "error";
   generationMessage?: string;
 }
 
-const mockActivities: Activity[] = [
-  {
-    id: '1',
-    name: 'Morning Run',
-    date: '2025-05-24',
-    distance: 5.2,
-    type: 'Run',
-    generationStatus: 'idle',
-  },
-  {
-    id: '2',
-    name: 'Evening Bike Ride',
-    date: '2025-05-23',
-    distance: 25.0,
-    type: 'Ride',
-    generationStatus: 'idle',
-  },
-  {
-    id: '3',
-    name: 'Lunchtime Swim',
-    date: '2025-05-22',
-    distance: 1.5,
-    type: 'Swim',
-    generationStatus: 'idle',
-  },
-];
-
 const ActivitiesPage: React.FC = () => {
+  const { userId } = useParams<{ userId: string }>();
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setActivities(mockActivities.map(act => ({ ...act, generationStatus: 'idle' })));
-  }, []);
+    if (!userId) return;
+    setLoading(true);
+    fetch(`/api/activities/${userId}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to fetch activities");
+        const data = await res.json();
+        setActivities(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data.map((act: any) => ({
+            ...act,
+            type: act.type || act.activity_type, // fallback for backend field
+            start_date: act.start_date || act.date,
+            generationStatus: "idle",
+          })),
+        );
+        setLoading(false);
+      })
+      .catch((e) => {
+        setError(e.message);
+        setLoading(false);
+      });
+  }, [userId]);
 
-  const handleGenerateName = async (activityId: string) => {
-    setActivities(prevActivities =>
-      prevActivities.map(act =>
+  const handleGenerateName = async (activityId: number) => {
+    setActivities((prevActivities) =>
+      prevActivities.map((act) =>
         act.id === activityId
-          ? { ...act, generationStatus: 'pending', generationMessage: 'Sending request...' }
-          : act
-      )
+          ? {
+              ...act,
+              generationStatus: "pending",
+              generationMessage: "Sending request...",
+            }
+          : act,
+      ),
     );
 
     try {
-      const response = await fetch(`/activity/${activityId}`, {
-        method: 'POST',
+      const response = await fetch(`/api/activity/${activityId}`, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
 
       if (response.ok) {
-        setActivities(prevActivities =>
-          prevActivities.map(act =>
+        setActivities((prevActivities) =>
+          prevActivities.map((act) =>
             act.id === activityId
-              ? { ...act, generationStatus: 'success', generationMessage: 'Name generation started!' }
-              : act
-          )
+              ? {
+                  ...act,
+                  generationStatus: "success",
+                  generationMessage: "Name generation started!",
+                }
+              : act,
+          ),
         );
         setTimeout(() => {
-          setActivities(prevActivities =>
-            prevActivities.map(act =>
-              act.id === activityId && act.generationStatus === 'success'
-                ? { ...act, generationStatus: 'idle', generationMessage: undefined }
-                : act
-            )
+          setActivities((prevActivities) =>
+            prevActivities.map((act) =>
+              act.id === activityId && act.generationStatus === "success"
+                ? {
+                    ...act,
+                    generationStatus: "idle",
+                    generationMessage: undefined,
+                  }
+                : act,
+            ),
           );
         }, 3000);
       } else {
         const errorText = await response.text();
-        throw new Error(errorText || 'Failed to start name generation.');
+        throw new Error(errorText || "Failed to start name generation.");
       }
     } catch (error) {
       console.error(`Error generating name for activity ${activityId}:`, error);
-      setActivities(prevActivities =>
-        prevActivities.map(act =>
+      setActivities((prevActivities) =>
+        prevActivities.map((act) =>
           act.id === activityId
-            ? { ...act, generationStatus: 'error', generationMessage: error instanceof Error ? error.message : 'An unknown error occurred.' }
-            : act
-        )
+            ? {
+                ...act,
+                generationStatus: "error",
+                generationMessage:
+                  error instanceof Error
+                    ? error.message
+                    : "An unknown error occurred.",
+              }
+            : act,
+        ),
       );
     }
   };
 
-  if (!activities.length) {
-    return <div>Loading activities...</div>;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64 text-lg">
+        Loading activities...
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-64 text-red-600">
+        {error}
+      </div>
+    );
   }
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h1>Your Activities</h1>
-      <ul style={{ listStyleType: 'none', padding: 0 }}>
-        {activities.map(activity => (
-          <li key={activity.id} style={{
-            border: '1px solid #ddd',
-            marginBottom: '10px',
-            padding: '15px',
-            borderRadius: '5px',
-            backgroundColor: '#f9f9f9'
-          }}>
-            <h3 style={{ marginTop: 0 }}>{activity.name}</h3>
-            <p><strong>Type:</strong> {activity.type}</p>
-            <p><strong>Date:</strong> {activity.date}</p>
-            <p><strong>Distance:</strong> {activity.distance} km</p>
-            {activity.generatedName && (
-              <p style={{ color: 'green' }}>
-                <strong>Suggested Name:</strong> {activity.generatedName}
-              </p>
-            )}
-            <button 
-              onClick={() => handleGenerateName(activity.id)}
-              disabled={activity.generationStatus === 'pending'}
-              style={{
-                padding: '8px 15px',
-                backgroundColor: activity.generationStatus === 'pending' ? '#ccc' : '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: activity.generationStatus === 'pending' ? 'not-allowed' : 'pointer',
-                marginTop: '10px'
-              }}
-            >
-              {activity.generationStatus === 'pending' ? 'Generating...' : 'Generate Name'}
-            </button>
-            {activity.generationMessage && (
-              <p style={{
-                marginTop: '10px',
-                color: activity.generationStatus === 'error' ? 'red' : (activity.generationStatus === 'success' ? 'green' : '#555'),
-                fontSize: '0.9em'
-              }}>
-                {activity.generationMessage}
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-200 py-12 px-4">
+      <div className="max-w-3xl mx-auto">
+        <h1 className="text-3xl font-bold text-blue-700 mb-8 text-center">
+          Your Activities
+        </h1>
+        <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+          {[...activities]
+            .sort(
+              (a, b) =>
+                new Date(b.start_date).getTime() -
+                new Date(a.start_date).getTime(),
+            )
+            .map((activity) => (
+              <div
+                key={activity.id}
+                className="bg-white rounded-xl shadow p-6 flex flex-col justify-between border border-blue-100"
+              >
+                <div>
+                  <h3 className="text-xl font-semibold text-blue-800 mb-2">
+                    {activity.name}
+                  </h3>
+                  <p className="text-gray-600 mb-1">
+                    <strong>Type:</strong> {activity.type}
+                  </p>
+                  <p className="text-gray-600 mb-1">
+                    <strong>Date:</strong>{" "}
+                    {activity.start_date
+                      ? new Date(activity.start_date).toLocaleString()
+                      : "-"}
+                  </p>
+                  <p className="text-gray-600 mb-1">
+                    <strong>Distance:</strong>{" "}
+                    {(activity.distance / 1000).toFixed(2)} km
+                  </p>
+                  {activity.average_heartrate && (
+                    <p className="text-gray-600 mb-1">
+                      <strong>Avg HR:</strong> {activity.average_heartrate} bpm
+                    </p>
+                  )}
+                  {activity.average_speed && (
+                    <p className="text-gray-600 mb-1">
+                      <strong>Avg Speed:</strong>{" "}
+                      {(activity.average_speed * 3.6).toFixed(2)} km/h
+                    </p>
+                  )}
+                </div>
+                <div className="mt-4">
+                  <button
+                    onClick={() => handleGenerateName(activity.id)}
+                    disabled={activity.generationStatus === "pending"}
+                    className={`w-full py-2 px-4 rounded-lg font-semibold transition duration-200 shadow-sm ${activity.generationStatus === "pending" ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
+                  >
+                    {activity.generationStatus === "pending"
+                      ? "Generating..."
+                      : "Generate Name"}
+                  </button>
+                  {activity.generationMessage && (
+                    <p
+                      className={`mt-2 text-center text-sm ${activity.generationStatus === "error" ? "text-red-600" : activity.generationStatus === "success" ? "text-green-600" : "text-gray-600"}`}
+                    >
+                      {activity.generationMessage}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+        </div>
+      </div>
     </div>
   );
 };

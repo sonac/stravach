@@ -13,7 +13,7 @@ type Store interface {
 	Connect() error
 	GetActivityById(activityId int64) (*models.UserActivity, error)
 	CreateUserActivity(activity *models.UserActivity, userId int64) error
-	GetUserActivities(userId int64) ([]models.UserActivity, error)
+	GetUserActivities(userId int64, limit int) ([]models.UserActivity, error)
 	UpdateUser(user *models.User) error
 	GetUserByStravaId(stravaId int64) (*models.User, error)
 	GetUserByChatId(chatId int64) (*models.User, error)
@@ -229,10 +229,10 @@ func (s *SQLiteStore) CreateUserActivity(activity *models.UserActivity, userId i
 	return err
 }
 
-func (s *SQLiteStore) GetUserActivities(userId int64) ([]models.UserActivity, error) {
+func (s *SQLiteStore) GetUserActivities(userId int64, limit int) ([]models.UserActivity, error) {
 	var activities []models.UserActivity
-	query := `SELECT id, name, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed, is_updated FROM user_activities WHERE user_id = ?`
-	rows, err := s.DB.Query(query, userId)
+	query := `SELECT id, name, distance, moving_time, elapsed_time, type, start_date, average_heartrate, average_speed, is_updated FROM user_activities WHERE user_id = ? ORDER BY start_date DESC LIMIT ?`
+	rows, err := s.DB.Query(query, userId, limit)
 	if err != nil {
 		slog.Error("error while fetching user activities", "id", userId)
 		return nil, err

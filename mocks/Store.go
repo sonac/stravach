@@ -67,25 +67,25 @@ func (_m *Store) GetActivityById(activityId int64) (*models.UserActivity, error)
 	return r0, r1
 }
 
-// GetUserActivities provides a mock function with given fields: userId
-func (_m *Store) GetUserActivities(userId int64) ([]models.UserActivity, error) {
-	ret := _m.Called(userId)
+// GetUserActivities provides a mock function with given fields: userId, limit
+func (_m *Store) GetUserActivities(userId int64, limit int) ([]models.UserActivity, error) {
+	ret := _m.Called(userId, limit)
 
 	var r0 []models.UserActivity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(int64) ([]models.UserActivity, error)); ok {
-		return rf(userId)
+	if rf, ok := ret.Get(0).(func(int64, int) ([]models.UserActivity, error)); ok {
+		return rf(userId, limit)
 	}
-	if rf, ok := ret.Get(0).(func(int64) []models.UserActivity); ok {
-		r0 = rf(userId)
+	if rf, ok := ret.Get(0).(func(int64, int) []models.UserActivity); ok {
+		r0 = rf(userId, limit)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.UserActivity)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(int64) error); ok {
-		r1 = rf(userId)
+	if rf, ok := ret.Get(1).(func(int64, int) error); ok {
+		r1 = rf(userId, limit)
 	} else {
 		r1 = ret.Error(1)
 	}
