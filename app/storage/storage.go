@@ -28,7 +28,7 @@ type SQLiteStore struct {
 }
 
 func (s *SQLiteStore) Connect() error {
-	db, err := sql.Open("sqlite3", "stravach_remote.db")
+	db, err := sql.Open("sqlite3", "db/stravach.db")
 	if err != nil {
 		slog.Error("cannot open sqlite file")
 		return err
@@ -38,11 +38,6 @@ func (s *SQLiteStore) Connect() error {
 		slog.Error("cannot create tables", "err", err)
 		return err
 	}
-	if err = s.migrate(); err != nil {
-		slog.Error("cannot migrate tables", "err", err)
-		return err
-	}
-
 	return nil
 }
 
@@ -50,10 +45,10 @@ func (s *SQLiteStore) createTables() error {
 	userTable := `
 		    CREATE TABLE IF NOT EXISTS users (
 		      id INTEGER PRIMARY KEY AUTOINCREMENT,
-		      strava_id INTEGER UNIQUE NOT NULL,
+		      strava_id INTEGER,
 		      telegram_chat_id INTEGER UNIQUE NOT NULL,
-		      username TEXT NOT NULL,
-		      email TEXT NOT NULL,
+		      username TEXT,
+		      email TEXT,
 		      strava_refresh_token TEXT,
 		      strava_access_token TEXT,
 		      strava_access_code TEXT,
@@ -88,103 +83,6 @@ func (s *SQLiteStore) createTables() error {
 		return err
 	}
 
-	return nil
-}
-
-func (s *SQLiteStore) migrate() error {
-	query := `PRAGMA table_info(users);`
-	rows, err := s.DB.Query(query)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve table info: %w", err)
-	}
-	defer func(rows *sql.Rows) {
-		_ = rows.Close()
-	}(rows)
-
-	type colInfo struct {
-		name    string
-		notnull int
-	}
-	var cols []colInfo
-	for rows.Next() {
-		var cid int
-		var name string
-		var ctype string
-		var notnull int
-		var dfltValue sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
-			return fmt.Errorf("failed to scan row: %w", err)
-		}
-		cols = append(cols, colInfo{name, notnull})
-	}
-
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("failed to iterate rows: %w", err)
-	}
-
-	var needMigration bool
-	for _, col := range cols {
-		if (col.name == "strava_id" || col.name == "email") && col.notnull == 1 {
-			needMigration = true
-		}
-	}
-
-	if needMigration {
-		slog.Info("Migrating users table to relax NOT NULL on strava_id and email...")
-		_, err := s.DB.Exec(`
-			CREATE TABLE IF NOT EXISTS users_new (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				strava_id INTEGER UNIQUE,
-				telegram_chat_id INTEGER UNIQUE NOT NULL,
-				username TEXT NOT NULL,
-				email TEXT,
-				strava_refresh_token TEXT,
-				strava_access_token TEXT,
-				strava_access_code TEXT,
-				token_expires_at INTEGER,
-				language TEXT
-			);
-		`)
-		if err != nil {
-			return fmt.Errorf("failed to create users_new table: %w", err)
-		}
-		_, err = s.DB.Exec(`
-			INSERT INTO users_new (id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language)
-			SELECT id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language FROM users;
-		`)
-		if err != nil {
-			return fmt.Errorf("failed to copy data to users_new: %w", err)
-		}
-		_, err = s.DB.Exec(`DROP TABLE users;`)
-		if err != nil {
-			return fmt.Errorf("failed to drop old users table: %w", err)
-		}
-		_, err = s.DB.Exec(`ALTER TABLE users_new RENAME TO users;`)
-		if err != nil {
-			return fmt.Errorf("failed to rename users_new to users: %w", err)
-		}
-		slog.Info("Migration completed: users table now allows NULL for strava_id and email.")
-	}
-
-	// Also ensure 'language' column exists (legacy logic)
-	langColExists := false
-	for _, col := range cols {
-		if col.name == "language" {
-			langColExists = true
-			break
-		}
-	}
-	if !langColExists {
-		alterQuery := `ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'English'`
-		_, err := s.DB.Exec(alterQuery)
-		if err != nil {
-			return fmt.Errorf("failed to alter users language: %w", err)
-		}
-		slog.Info("Added 'language' column to users table")
-	} else {
-		slog.Info("All new columns are present")
-	}
 	return nil
 }
 
