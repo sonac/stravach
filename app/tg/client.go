@@ -89,7 +89,7 @@ func NewTelegramClient(apiKey string) (*Telegram, error) {
 		AI:                ai,
 		APIKey:            apiKey,
 		CustomPromptState: make(map[int64]int64),
-		ActivitiesChannel: make(chan ActivityForUpdate, 10), // buffered channel
+		ActivitiesChannel: make(chan ActivityForUpdate, 10),
 	}, nil
 }
 
@@ -185,7 +185,6 @@ func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models
 
 	if err != nil {
 		slog.Error("failed to send auth message", "err", err, "chatID", chatID)
-		// No need to send another message if this one fails, as it might also fail.
 	}
 }
 
@@ -209,7 +208,6 @@ func (tg *Telegram) refreshActivitiesHandler(ctx context.Context, b *bot.Bot, up
 	})
 	if err != nil {
 		slog.Error("failed to send activities refreshed message", "err", err, "chatID", chatID)
-		// User already got feedback implicitly by the command finishing or an error message above
 	}
 }
 
@@ -325,7 +323,6 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 	slog.Info("Generated names for activity", "activityID", activity.Activity.ID, "names", names)
 	tg.sendMessage(context.Background(), activity.ChatId, fmt.Sprintf(generatingBetterNamesMessage, activity.Activity.Name, activity.Activity.ID))
 
-	// Format names as a numbered list for the message
 	var listText string
 	for i, name := range names {
 		listText += fmt.Sprintf("%d. %s\n", i+1, name)
@@ -334,16 +331,12 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 
 	msgText := "*Select a number with new name:*\n\n" + listText
 
-	// Send the formatted list as a message (with Markdown)
 	tg.sendMessage(context.Background(), activity.ChatId, msgText)
 
-	// Prepare inline keyboard with numbers and special options
-	// Limit to first 10 options
 	maxOptions := 10
 	if len(names) < maxOptions {
 		maxOptions = len(names)
 	}
-	// Arrange buttons in 3 columns
 	var inlineKeyboard [][]models.InlineKeyboardButton
 	row := []models.InlineKeyboardButton{}
 	for i := 0; i < maxOptions; i++ {
@@ -360,7 +353,6 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 	if len(row) > 0 {
 		inlineKeyboard = append(inlineKeyboard, row)
 	}
-	// Add regenerate and custom prompt buttons as a final row
 	finalRow := []models.InlineKeyboardButton{
 		{
 			Text:         "🔄 Regenerate",
@@ -501,7 +493,7 @@ func (tg *Telegram) handleActivitySelection(ctx context.Context, chatID int64, a
 	activity.Name = tg.cleanName(newName)
 	activity.IsUpdated = true
 
-	err = tg.refreshAuthForUser(usr) // Ensure token is fresh before making Strava API call
+	err = tg.refreshAuthForUser(usr)
 	if err != nil {
 		slog.Error("Failed to refresh auth for user before updating activity", "userID", usr.ID, "err", err)
 		tg.sendMessage(ctx, chatID, "Authentication error. Please try /start again.")
@@ -518,8 +510,6 @@ func (tg *Telegram) handleActivitySelection(ctx context.Context, chatID int64, a
 	err = tg.DB.UpdateUserActivity(activity)
 	if err != nil {
 		slog.Error("Failed to update activity in DB after Strava update", "activityID", activity.ID, "err", err)
-		// Strava update was successful, but local DB update failed. This is a partial success/failure state.
-		// Inform user about Strava success but potential inconsistency.
 		tg.sendMessage(ctx, chatID, fmt.Sprintf("Activity '%s' updated on Strava, but local sync failed. Please try /refresh_activities.", activity.Name))
 		return
 	}
@@ -587,12 +577,9 @@ func (tg *Telegram) refreshAuthForUser(usr *dbModels.User) error {
 // cleanName removes leading/trailing spaces and special characters from the activity name.
 func (tg *Telegram) cleanName(name string) string {
 	name = strings.TrimSpace(name)
-	// Remove characters that might be problematic in Telegram or other systems
-	// This regex removes anything that's not a letter, number, space, hyphen, or common punctuation.
-	// Adjust the regex as needed for more specific cleaning rules.
+
 	re := regexp.MustCompile(`[^a-zA-Z0-9\s\-_.,!?'"()&]+`)
 	name = re.ReplaceAllString(name, "")
-	// Optionally, replace multiple spaces with a single space
 	re = regexp.MustCompile(`\s+`)
 	name = re.ReplaceAllString(name, " ")
 	return name

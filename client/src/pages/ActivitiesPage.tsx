@@ -5,13 +5,12 @@ interface Activity {
   name: string;
   date: string;
   distance: number;
-  type: string; // e.g., "Run", "Ride", "Swim"
+  type: string;
   generatedName?: string;
-  generationStatus?: 'idle' | 'pending' | 'success' | 'error'; // Added for UX feedback
-  generationMessage?: string; // Added for UX feedback
+  generationStatus?: 'idle' | 'pending' | 'success' | 'error';
+  generationMessage?: string;
 }
 
-// Mock data for now - replace with API call
 const mockActivities: Activity[] = [
   {
     id: '1',
@@ -43,8 +42,6 @@ const ActivitiesPage: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
-    // In a real app, you would fetch activities from an API here
-    // For now, initialize mock activities with idle status
     setActivities(mockActivities.map(act => ({ ...act, generationStatus: 'idle' })));
   }, []);
 
@@ -60,14 +57,12 @@ const ActivitiesPage: React.FC = () => {
     try {
       const response = await fetch(`/activity/${activityId}`, {
         method: 'POST',
-        // No body needed as per server.go, but headers can be good practice
         headers: {
           'Content-Type': 'application/json',
         },
       });
 
       if (response.ok) {
-        // const responseText = await response.text(); // Optional: use if server sends meaningful text
         setActivities(prevActivities =>
           prevActivities.map(act =>
             act.id === activityId
@@ -75,7 +70,6 @@ const ActivitiesPage: React.FC = () => {
               : act
           )
         );
-        // Optionally, clear the success message after a few seconds
         setTimeout(() => {
           setActivities(prevActivities =>
             prevActivities.map(act =>
@@ -128,7 +122,7 @@ const ActivitiesPage: React.FC = () => {
             )}
             <button 
               onClick={() => handleGenerateName(activity.id)}
-              disabled={activity.generationStatus === 'pending'} // Disable button when pending
+              disabled={activity.generationStatus === 'pending'}
               style={{
                 padding: '8px 15px',
                 backgroundColor: activity.generationStatus === 'pending' ? '#ccc' : '#007bff',
