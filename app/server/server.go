@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"io"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -415,37 +414,9 @@ func (h *HttpHandler) Start() {
 	http.HandleFunc("/api/auth-callback/", h.authCallbackHandler)
 	http.HandleFunc("/api/tg-auth", h.tgAuthHandler)
 	http.HandleFunc("/api/webhook", h.webhook)
+	// tmp solution, can't delete old webhook subscription
+	http.HandleFunc("/webhook", h.webhook)
 
-	// Proxy /webhook to /api/webhook
-	http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
-		// Create a new request to /api/webhook
-		url := *r.URL
-		url.Path = "/api/webhook"
-		proxyReq, err := http.NewRequest(r.Method, url.String(), r.Body)
-		if err != nil {
-			http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
-			return
-		}
-		proxyReq.Header = r.Header.Clone()
-
-		client := &http.Client{}
-		resp, err := client.Do(proxyReq)
-		if err != nil {
-			http.Error(w, "Proxy request failed", http.StatusBadGateway)
-			return
-		}
-		defer resp.Body.Close()
-
-		for k, v := range resp.Header {
-			for _, vv := range v {
-				w.Header().Add(k, vv)
-			}
-		}
-		w.WriteHeader(resp.StatusCode)
-		_, _ = io.Copy(w, resp.Body)
-	})
-
-	// Serve static files and SPA fallback
 	fs := http.FileServer(http.Dir(h.StaticDir))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Serve static files if they exist
