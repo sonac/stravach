@@ -27,6 +27,20 @@ func (_m *Store) Connect() error {
 	return r0
 }
 
+// CreateUserActivities provides a mock function with given fields: activities
+func (_m *Store) CreateUserActivities(activities []*models.UserActivity) error {
+	ret := _m.Called(activities)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func([]*models.UserActivity) error); ok {
+		r0 = rf(activities)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // CreateUserActivity provides a mock function with given fields: activity, userId
 func (_m *Store) CreateUserActivity(activity *models.UserActivity, userId int64) error {
 	ret := _m.Called(activity, userId)

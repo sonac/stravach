@@ -12,59 +12,8 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// Mocking the dependencies
-type MockDB struct {
-	mock.Mock
-}
-
-func (mdb *MockDB) Connect() error {
-	return nil
-}
-
-func (mdb *MockDB) GetActivityById(activityId int64) (*models.UserActivity, error) {
-	args := mdb.Called(activityId)
-	return args.Get(0).(*models.UserActivity), args.Error(1)
-}
-
-func (mdb *MockDB) CreateUserActivity(activity *models.UserActivity, userId int64) error {
-	args := mdb.Called(activity, userId)
-	return args.Error(0)
-}
-
-func (mdb *MockDB) UpdateUser(user *models.User) error {
-	args := mdb.Called(user)
-	return args.Error(0)
-}
-
-func (mdb *MockDB) GetUserByStravaId(stravaId int64) (*models.User, error) {
-	args := mdb.Called(stravaId)
-	return args.Get(0).(*models.User), args.Error(1)
-}
-
-func (mdb *MockDB) GetUserActivities(userId int64, limit int) ([]models.UserActivity, error) {
-	args := mdb.Called(userId)
-	return args.Get(0).([]models.UserActivity), args.Error(1)
-}
-
-func (mdb *MockDB) GetUserByChatId(chatId int64) (*models.User, error) {
-	args := mdb.Called(chatId)
-	return args.Get(0).(*models.User), args.Error(1)
-}
-
-func (mdb *MockDB) GetUserById(id int64) (*models.User, error) {
-	args := mdb.Called(id)
-	return args.Get(0).(*models.User), args.Error(1)
-}
-
-func (mdb *MockDB) IsActivityExists(activityId int64) (bool, error) {
-	args := mdb.Called(activityId)
-	return args.Get(0).(bool), args.Error(1)
-}
-
-// Use mockery-generated StravaService mock from mocks package
-
 func TestProcessActivity_ActivityExists(t *testing.T) {
-	mockDB := new(MockDB)
+	mockDB := new(mocks.Store)
 	mockStrava := &mocks.StravaService{}
 	activitiesChannel := make(chan tg.ActivityForUpdate, 1)
 
@@ -89,7 +38,7 @@ func TestProcessActivity_ActivityExists(t *testing.T) {
 }
 
 func TestProcessActivity_NewActivity(t *testing.T) {
-	mockDB := new(MockDB)
+	mockDB := new(mocks.Store)
 	mockStrava := &mocks.StravaService{}
 	activitiesChannel := make(chan tg.ActivityForUpdate, 1)
 
@@ -119,7 +68,7 @@ func TestProcessActivity_NewActivity(t *testing.T) {
 }
 
 func TestProcessActivity_UserAuthRequired(t *testing.T) {
-	mockDB := new(MockDB)
+	mockDB := new(mocks.Store)
 	mockStrava := &mocks.StravaService{}
 	activitiesChannel := make(chan tg.ActivityForUpdate, 1)
 
@@ -154,7 +103,7 @@ func TestProcessActivity_UserAuthRequired(t *testing.T) {
 }
 
 func TestProcessActivity_StravaFetchError(t *testing.T) {
-	mockDB := new(MockDB)
+	mockDB := new(mocks.Store)
 	mockStrava := &mocks.StravaService{}
 	activitiesChannel := make(chan tg.ActivityForUpdate, 1)
 

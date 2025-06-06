@@ -66,6 +66,65 @@ func (h *HttpHandler) Init() {
 // activitiesPageHandler is deprecated. All frontend routing is now handled by React SPA.
 // func (h *HttpHandler) activitiesPageHandler(w http.ResponseWriter, r *http.Request) {}
 
+// refreshLast10ActivitiesHandler refreshes the last 10 activities from Strava for a user and saves them to the DB.
+func (h *HttpHandler) refreshLast10ActivitiesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_, _ = w.Write([]byte("Method not allowed"))
+		return
+	}
+	usrChatIdStr := strings.TrimPrefix(r.URL.Path, "/api/activities-refresh-last-10/")
+	usrChatId, err := strconv.ParseInt(usrChatIdStr, 10, 64)
+	if err != nil {
+		slog.Error("invalid user id", "error", err)
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte("Invalid user id"))
+		return
+	}
+	usr, err := h.DB.GetUserByChatId(usrChatId)
+	if err != nil || usr == nil {
+		slog.Error("failed to get user", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("Failed to get user"))
+		return
+	}
+	// Refresh token if needed
+	err = RefreshStravaTokenIfNeeded(h.Strava, h.DB, usr)
+	if err != nil {
+		slog.Error("failed to refresh Strava token", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("Failed to refresh Strava token"))
+		return
+	}
+	activities, err := h.Strava.GetLatestActivities(usr.StravaAccessToken, 10)
+	if err != nil {
+		slog.Error("failed to fetch activities from Strava", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("Failed to fetch activities from Strava"))
+		return
+	}
+	if len(activities) == 0 {
+		slog.Info("No new activities found from Strava", "userID", usr.ID)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("No new activities found"))
+		return
+	}
+	var activityPtrs []*models.UserActivity
+	for i := range activities {
+		activities[i].UserID = usr.ID
+		activityPtrs = append(activityPtrs, &activities[i])
+	}
+	err = h.DB.CreateUserActivities(activityPtrs)
+	if err != nil {
+		slog.Error("failed to save activities to DB", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("Failed to save activities to DB"))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("Last 10 activities refreshed successfully"))
+}
+
 func (h *HttpHandler) authHandler(w http.ResponseWriter, r *http.Request) {
 	chatId := strings.Split(r.URL.Path, "/")[3] // /api/auth/:chatId
 	redirectUrl := fmt.Sprintf("https://www.strava.com/oauth/authorize?client_id=37166&response_type=code&"+
@@ -252,7 +311,7 @@ func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
 
 func (h *HttpHandler) updateActivity(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("got updateActivity request")
-	activityIdStr := strings.TrimPrefix(r.URL.Path, "/activity/")
+	activityIdStr := strings.TrimPrefix(r.URL.Path, "/api/activity/")
 	activityId, err := strconv.ParseInt(activityIdStr, 10, 64)
 	if err != nil {
 		slog.Error("invalid activity id", "error", err)
@@ -409,6 +468,7 @@ func (h *HttpHandler) processActivity(activityId int64, user *models.User) error
 func (h *HttpHandler) Start() {
 	// API routes
 	http.HandleFunc("/api/activities/", h.getActivities)
+	http.HandleFunc("/api/activities-refresh-last-10/", h.refreshLast10ActivitiesHandler) // NEW
 	http.HandleFunc("/api/activity/", h.updateActivity)
 	http.HandleFunc("/api/auth/", h.authHandler)
 	http.HandleFunc("/api/auth-callback/", h.authCallbackHandler)
