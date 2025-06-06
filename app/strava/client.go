@@ -63,9 +63,37 @@ type StravaService interface {
 	GetActivity(accessToken string, activityId int64) (*models.UserActivity, error)
 	GetAllActivities(accessToken string) (*[]models.UserActivity, error)
 	UpdateActivity(accessToken string, activity models.UserActivity) (*models.UserActivity, error)
+	GetLatestActivities(accessToken string, limit int) ([]models.UserActivity, error)
 }
 
 var _ StravaService = (*Client)(nil)
+
+// GetLatestActivities fetches the most recent N activities for the user.
+func (c *Client) GetLatestActivities(accessToken string, limit int) ([]models.UserActivity, error) {
+	url := fmt.Sprintf("%s?per_page=%d&page=1", athleteActivitiesUrl, limit)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		slog.Error("error occurred during request creation")
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	var activities []models.UserActivity
+	resp, err := Handler.Do(req)
+	if err != nil {
+		slog.Error("error occurred during request handling")
+		return nil, err
+	}
+	if resp == nil || resp.StatusCode == 401 {
+		slog.Error("received unsuccessful response")
+		return nil, errors.New(utils.UNAUTHORIZED)
+	}
+	err = json.NewDecoder(resp.Body).Decode(&activities)
+	if err != nil {
+		slog.Error("error occurred during response decode handling")
+		return nil, err
+	}
+	return activities, nil
+}
 
 func NewStravaClient() *Client {
 	clientId := os.Getenv("STRAVA_CLIENT_ID")

@@ -13,6 +13,7 @@ type Store interface {
 	Connect() error
 	GetActivityById(activityId int64) (*models.UserActivity, error)
 	CreateUserActivity(activity *models.UserActivity, userId int64) error
+	CreateUserActivities(activities []*models.UserActivity) error
 	GetUserActivities(userId int64, limit int) ([]models.UserActivity, error)
 	UpdateUser(user *models.User) error
 	GetUserByStravaId(stravaId int64) (*models.User, error)

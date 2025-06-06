@@ -93,6 +93,32 @@ func (_m *StravaService) GetAllActivities(accessToken string) (*[]models.UserAct
 	return r0, r1
 }
 
+// GetLatestActivities provides a mock function with given fields: accessToken, limit
+func (_m *StravaService) GetLatestActivities(accessToken string, limit int) ([]models.UserActivity, error) {
+	ret := _m.Called(accessToken, limit)
+
+	var r0 []models.UserActivity
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, int) ([]models.UserActivity, error)); ok {
+		return rf(accessToken, limit)
+	}
+	if rf, ok := ret.Get(0).(func(string, int) []models.UserActivity); ok {
+		r0 = rf(accessToken, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.UserActivity)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string, int) error); ok {
+		r1 = rf(accessToken, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // RefreshAccessToken provides a mock function with given fields: refreshToken
 func (_m *StravaService) RefreshAccessToken(refreshToken string) (*strava.AuthResp, error) {
 	ret := _m.Called(refreshToken)

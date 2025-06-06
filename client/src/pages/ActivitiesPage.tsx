@@ -21,6 +21,51 @@ const ActivitiesPage: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchActivities = async () => {
+    if (!userId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/activities/${userId}`);
+      if (!res.ok) throw new Error("Failed to fetch activities");
+      const data = await res.json();
+      setActivities(
+        data.map((act: any) => ({
+          ...act,
+          type: act.type || act.activity_type,
+          start_date: act.start_date || act.date,
+          generationStatus: "idle",
+        }))
+      );
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshLast10Activities = async () => {
+    if (!userId) return;
+    setRefreshing(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/activities-refresh-last-10/${userId}`, {
+        method: "POST"
+      });
+      if (!res.ok) throw new Error("Failed to refresh last 10 activities");
+      await fetchActivities();
+    } catch (e: any) {
+      setError(e.message || "Failed to refresh last 10 activities");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchActivities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -36,7 +81,7 @@ const ActivitiesPage: React.FC = () => {
             type: act.type || act.activity_type, // fallback for backend field
             start_date: act.start_date || act.date,
             generationStatus: "idle",
-          })),
+          }))
         );
         setLoading(false);
       })
@@ -55,8 +100,8 @@ const ActivitiesPage: React.FC = () => {
               generationStatus: "pending",
               generationMessage: "Sending request...",
             }
-          : act,
-      ),
+          : act
+      )
     );
 
     try {
@@ -76,8 +121,8 @@ const ActivitiesPage: React.FC = () => {
                   generationStatus: "success",
                   generationMessage: "Name generation started!",
                 }
-              : act,
-          ),
+              : act
+          )
         );
         setTimeout(() => {
           setActivities((prevActivities) =>
@@ -88,8 +133,8 @@ const ActivitiesPage: React.FC = () => {
                     generationStatus: "idle",
                     generationMessage: undefined,
                   }
-                : act,
-            ),
+                : act
+            )
           );
         }, 3000);
       } else {
@@ -109,8 +154,8 @@ const ActivitiesPage: React.FC = () => {
                     ? error.message
                     : "An unknown error occurred.",
               }
-            : act,
-        ),
+            : act
+        )
       );
     }
   };
@@ -136,12 +181,21 @@ const ActivitiesPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-blue-700 mb-8 text-center">
           Your Activities
         </h1>
+        <div className="flex justify-end mb-6">
+          <button
+            onClick={refreshLast10Activities}
+            disabled={refreshing}
+            className={`py-2 px-6 rounded-lg font-semibold shadow-sm transition duration-200 ${refreshing ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600 text-white"}`}
+          >
+            {refreshing ? "Refreshing..." : "Refresh Last 10"}
+          </button>
+        </div>
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
           {[...activities]
             .sort(
               (a, b) =>
                 new Date(b.start_date).getTime() -
-                new Date(a.start_date).getTime(),
+                new Date(a.start_date).getTime()
             )
             .map((activity) => (
               <div
@@ -181,7 +235,11 @@ const ActivitiesPage: React.FC = () => {
                   <button
                     onClick={() => handleGenerateName(activity.id)}
                     disabled={activity.generationStatus === "pending"}
-                    className={`w-full py-2 px-4 rounded-lg font-semibold transition duration-200 shadow-sm ${activity.generationStatus === "pending" ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
+                    className={`w-full py-2 px-4 rounded-lg font-semibold transition duration-200 shadow-sm ${
+                      activity.generationStatus === "pending"
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                    }`}
                   >
                     {activity.generationStatus === "pending"
                       ? "Generating..."
@@ -189,7 +247,13 @@ const ActivitiesPage: React.FC = () => {
                   </button>
                   {activity.generationMessage && (
                     <p
-                      className={`mt-2 text-center text-sm ${activity.generationStatus === "error" ? "text-red-600" : activity.generationStatus === "success" ? "text-green-600" : "text-gray-600"}`}
+                      className={`mt-2 text-center text-sm ${
+                        activity.generationStatus === "error"
+                          ? "text-red-600"
+                          : activity.generationStatus === "success"
+                          ? "text-green-600"
+                          : "text-gray-600"
+                      }`}
                     >
                       {activity.generationMessage}
                     </p>
