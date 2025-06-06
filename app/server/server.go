@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
@@ -64,52 +63,33 @@ func (h *HttpHandler) Init() {
 	}
 }
 
-func (h *HttpHandler) activitiesPageHandler(w http.ResponseWriter, r *http.Request) {
-	userIDStr := strings.TrimPrefix(r.URL.Path, "/user/")
-	userID, err := strconv.ParseInt(userIDStr, 10, 64)
-	if err != nil {
-		slog.Error("invalid user id", "error", err)
-		http.Error(w, "Invalid User ID", http.StatusBadRequest)
-		return
-	}
-
-	tmplPath := filepath.Join("templates", "activities.html")
-	tmpl, err := template.ParseFiles(tmplPath)
-	if err != nil {
-		slog.Error("error parsing template", "error", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	data := struct {
-		UserID int64
-	}{
-		UserID: userID,
-	}
-	err = tmpl.Execute(w, data)
-	if err != nil {
-		slog.Error("error executing template", "error", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-	}
-}
+// activitiesPageHandler is deprecated. All frontend routing is now handled by React SPA.
+// func (h *HttpHandler) activitiesPageHandler(w http.ResponseWriter, r *http.Request) {}
 
 func (h *HttpHandler) authHandler(w http.ResponseWriter, r *http.Request) {
-	chatId := strings.Split(r.URL.Path, "/")[2]
+	chatId := strings.Split(r.URL.Path, "/")[3] // /api/auth/:chatId
 	redirectUrl := fmt.Sprintf("https://www.strava.com/oauth/authorize?client_id=37166&response_type=code&"+
-		"redirect_uri=%s/auth-callback/%s&approval_prompt=force&scope=read_all,activity:write,activity:read_all", h.Url, chatId)
+		"redirect_uri=%s/api/auth-callback/%s&approval_prompt=force&scope=read_all,activity:write,activity:read_all", h.Url, chatId)
 	http.Redirect(w, r, redirectUrl, http.StatusTemporaryRedirect)
 }
 
 func (h *HttpHandler) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	chatId, err := strconv.ParseInt(strings.Split(r.URL.Path, "/")[2], 10, 64)
-	stravaAccessCode := utils.GetCodeFromUrl(r.URL.RawQuery)
-	slog.Info(fmt.Sprintf("Updating info for user: %d", chatId))
+	// Expect path: /api/auth-callback/:chatId
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 4 {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "Invalid callback URL")
+		return
+	}
+	chatId, err := strconv.ParseInt(parts[3], 10, 64)
 	if err != nil {
 		slog.Error("error while parsing chatId from URL: " + r.URL.Path)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintf(w, "Error occured during callback")
 		return
 	}
+	stravaAccessCode := utils.GetCodeFromUrl(r.URL.RawQuery)
+	slog.Info(fmt.Sprintf("Updating info for user: %d", chatId))
 
 	usr, err := h.DB.GetUserByChatId(chatId)
 	if err != nil {
@@ -427,14 +407,26 @@ func (h *HttpHandler) processActivity(activityId int64, user *models.User) error
 }
 
 func (h *HttpHandler) Start() {
-	http.Handle("/", http.FileServer(http.Dir(h.StaticDir)))
-	http.HandleFunc("/auth/", h.authHandler)
-	http.HandleFunc("/auth-callback/", h.authCallbackHandler)
-	http.HandleFunc("/tg-auth", h.tgAuthHandler)
+	// API routes
 	http.HandleFunc("/api/activities/", h.getActivities)
-	http.HandleFunc("/user/", h.activitiesPageHandler)
 	http.HandleFunc("/api/activity/", h.updateActivity)
-	http.HandleFunc("/webhook", h.webhook)
+	http.HandleFunc("/api/auth/", h.authHandler)
+	http.HandleFunc("/api/auth-callback/", h.authCallbackHandler)
+	http.HandleFunc("/api/tg-auth", h.tgAuthHandler)
+	http.HandleFunc("/api/webhook", h.webhook)
+
+	// Serve static files and SPA fallback
+	fs := http.FileServer(http.Dir(h.StaticDir))
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Serve static files if they exist
+		path := filepath.Join(h.StaticDir, r.URL.Path)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			fs.ServeHTTP(w, r)
+			return
+		}
+		// Otherwise, serve index.html for React Router
+		http.ServeFile(w, r, filepath.Join(h.StaticDir, "index.html"))
+	})
 
 	slog.Info("Starting server on port " + h.Port)
 	err := http.ListenAndServe(":"+h.Port, nil)

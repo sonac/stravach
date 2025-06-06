@@ -175,7 +175,7 @@ func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models
 		slog.Info("New user created", "chatID", chatID)
 	}
 
-	link := fmt.Sprintf("%s/auth/%d", url, chatID)
+	link := fmt.Sprintf("%s/api/auth/%d", url, chatID)
 	escapedLink := bot.EscapeMarkdownUnescaped(link)
 	replyMsg := fmt.Sprintf(authLinkMessage, escapedLink)
 	slog.Info("Sending auth link", "link", link, "chatID", chatID)
