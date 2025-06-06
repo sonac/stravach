@@ -87,7 +87,7 @@ const HomePage = () => {
                     body: JSON.stringify(payload),
                     credentials: "include",
                   });
-                  navigate("/user/1");
+                  navigate("/user/212439945");
                 }}
               >
                 Dev Login (Localhost)

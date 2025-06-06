@@ -219,15 +219,15 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *HttpHandler) getActivities(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("got getActivities request")
-	usrIdStr := strings.TrimPrefix(r.URL.Path, "/api/activities/")
-	usrId, err := strconv.ParseInt(usrIdStr, 10, 64)
+	usrChatIdStr := strings.TrimPrefix(r.URL.Path, "/api/activities/")
+	usrChatId, err := strconv.ParseInt(usrChatIdStr, 10, 64)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	usr, err := h.DB.GetUserById(usrId)
+	usr, err := h.DB.GetUserByChatId(usrChatId)
 	if err != nil {
 		slog.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
