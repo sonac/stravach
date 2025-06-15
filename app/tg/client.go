@@ -57,6 +57,8 @@ type DBStore interface {
 type AI interface {
 	GenerateBetterNames(activity dbModels.UserActivity, lang string) ([]string, error)
 	GenerateBetterNamesWithCustomizedPrompt(activity dbModels.UserActivity, lang, prompt string) ([]string, error)
+	CheckIfItsAName(msg string) (bool, error)
+	FormatActivityName(name string) (bool, error)
 }
 
 type Telegram struct {
@@ -262,6 +264,24 @@ func (tg *Telegram) messageHandler(ctx context.Context, b *bot.Bot, update *mode
 	if err != nil {
 		slog.Error("error while fetching activity for custom prompt", "err", err, "activityID", activityID)
 		tg.sendMessage(ctx, chatID, defaultBotErrorMessage)
+		return
+	}
+
+	isName, err := tg.AI.CheckIfItsAName(customPrompt)
+	if err != nil {
+		slog.Error("error while sending message to AI", "err", err)
+		tg.sendMessage(ctx, chatID, defaultBotErrorMessage)
+		return
+	}
+
+	if isName {
+		formattedName, err := tg.AI.FormatActivityName(customPrompt)
+		if err != nil {
+			slog.Error("error while sending message to AI", "err", err)
+			tg.sendMessage(ctx, chatID, defaultBotErrorMessage)
+			return
+		}
+		tg.handleActivitySelection(ctx, chatID, activityID, formattedName)
 		return
 	}
 
