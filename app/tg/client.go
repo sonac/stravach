@@ -58,7 +58,7 @@ type AI interface {
 	GenerateBetterNames(activity dbModels.UserActivity, lang string) ([]string, error)
 	GenerateBetterNamesWithCustomizedPrompt(activity dbModels.UserActivity, lang, prompt string) ([]string, error)
 	CheckIfItsAName(msg string) (bool, error)
-	FormatActivityName(name string) (bool, error)
+	FormatActivityName(name string) (string, error)
 }
 
 type Telegram struct {

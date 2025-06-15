@@ -14,8 +14,9 @@ import (
 )
 
 type AIRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
+	Model          string         `json:"model"`
+	Messages       []Message      `json:"messages"`
+	ResponseFormat ResponseFormat `json:"response_format"`
 }
 
 type Message struct {
@@ -30,12 +31,11 @@ type ResponseFormat struct {
 
 type JSONSchema struct {
 	Schema Schema `json:"schema"`
+	Name   string `json:"name"`
 }
 
 type Schema struct {
-	Properties SchemaProperties `json:"properties"`
-	Type       string           `json:"type"`
-	Name       string           `json:"name"`
+	Type string `json:"type"`
 }
 
 type Response struct {
@@ -98,7 +98,11 @@ func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserAc
 
 func (ai *OpenAI) FormatActivityName(name string) (string, error) {
 	prompt := fmt.Sprintf("Format name for a Strava acitvity, return only new name: %s", name)
-	return ai.sendRequest(prompt)[0]
+	res, err := ai.sendRequest(prompt)
+	if err != nil || len(res) == 0 {
+		return "", err
+	}
+	return res[0], nil
 }
 
 func (ai *OpenAI) CheckIfItsAName(msg string) (bool, error) {
@@ -120,7 +124,7 @@ func (ai *OpenAI) sendStructuredRequest(prompt string) (string, error) {
 		},
 		{
 			Role:    "user",
-			Conetnt: prompt,
+			Content: prompt,
 		},
 	}
 	responseFormat := ResponseFormat{
@@ -133,16 +137,17 @@ func (ai *OpenAI) sendStructuredRequest(prompt string) (string, error) {
 		},
 	}
 	requestBody, err := json.Marshal(AIRequest{
-		Model:    "Llama-3.3-70B-Instruct",
-		Messages: messages,
+		Model:          "Llama-3.3-70B-Instruct",
+		Messages:       messages,
+		ResponseFormat: responseFormat,
 	})
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	req, err := http.NewRequest("POST", "https://api.llama.com/v1/chat/completions", bytes.NewBuffer(requestBody))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -151,11 +156,11 @@ func (ai *OpenAI) sendStructuredRequest(prompt string) (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("OpenAI API returned non 200: %s", resp.Status)
+		return "", fmt.Errorf("OpenAI API returned non 200: %s", resp.Status)
 	}
 
 	defer func(Body io.ReadCloser) {
@@ -166,7 +171,7 @@ func (ai *OpenAI) sendStructuredRequest(prompt string) (string, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, nil
+		return "", nil
 	}
 
 	slog.Debug(string(body))
@@ -174,14 +179,14 @@ func (ai *OpenAI) sendStructuredRequest(prompt string) (string, error) {
 	var metaAIResponse MetaResponse
 	err = json.Unmarshal(body, &metaAIResponse)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if metaAIResponse.CompletionMessage.Content.Text == "" {
-		return nil, fmt.Errorf("no respnse from OpenAI")
+		return "", fmt.Errorf("no respnse from OpenAI")
 	}
 
-	return metaAIResponse.CompletionMessage.Content.Text
+	return metaAIResponse.CompletionMessage.Content.Text, nil
 }
 
 func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
