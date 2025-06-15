@@ -13,6 +13,54 @@ type AI struct {
 	mock.Mock
 }
 
+// CheckIfItsAName provides a mock function with given fields: msg
+func (_m *AI) CheckIfItsAName(msg string) (bool, error) {
+	ret := _m.Called(msg)
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string) (bool, error)); ok {
+		return rf(msg)
+	}
+	if rf, ok := ret.Get(0).(func(string) bool); ok {
+		r0 = rf(msg)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(msg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// FormatActivityName provides a mock function with given fields: name
+func (_m *AI) FormatActivityName(name string) (string, error) {
+	ret := _m.Called(name)
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string) (string, error)); ok {
+		return rf(name)
+	}
+	if rf, ok := ret.Get(0).(func(string) string); ok {
+		r0 = rf(name)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GenerateBetterNames provides a mock function with given fields: activity, lang
 func (_m *AI) GenerateBetterNames(activity models.UserActivity, lang string) ([]string, error) {
 	ret := _m.Called(activity, lang)
