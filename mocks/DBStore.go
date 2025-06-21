@@ -67,6 +67,32 @@ func (_m *DBStore) GetActivityById(activityID int64) (*models.UserActivity, erro
 	return r0, r1
 }
 
+// GetAllUsers provides a mock function with given fields:
+func (_m *DBStore) GetAllUsers() ([]*models.User, error) {
+	ret := _m.Called()
+
+	var r0 []*models.User
+	var r1 error
+	if rf, ok := ret.Get(0).(func() ([]*models.User, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() []*models.User); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.User)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetUserByChatId provides a mock function with given fields: chatID
 func (_m *DBStore) GetUserByChatId(chatID int64) (*models.User, error) {
 	ret := _m.Called(chatID)

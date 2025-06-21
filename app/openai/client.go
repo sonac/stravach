@@ -9,14 +9,15 @@ import (
 	"net/http"
 	"os"
 	"stravach/app/storage/models"
+	"stravach/app/utils"
 	"strconv"
 	"strings"
 )
 
 type AIRequest struct {
-	Model          string         `json:"model"`
-	Messages       []Message      `json:"messages"`
-	ResponseFormat ResponseFormat `json:"response_format"`
+	Model          string          `json:"model"`
+	Messages       []Message       `json:"messages"`
+	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
 }
 
 type Message struct {
@@ -25,8 +26,8 @@ type Message struct {
 }
 
 type ResponseFormat struct {
-	Type       string     `json:"type"`
-	JSONSchema JSONSchema `json:"json_schema"`
+	Type       string     `json:"type,omitempty"`
+	JSONSchema JSONSchema `json:"json_schema,omitempty"`
 }
 
 type JSONSchema struct {
@@ -89,10 +90,11 @@ func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity, language str
 }
 
 func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, lang, prompt string) ([]string, error) {
-	fullPrompt := fmt.Sprintf("Generate up to three, new-line separated names for the following activity: %s, of type %s, duration: %d seconds. Use this also as an input for prompt: %s. Language: %s. "+
-		"This is for my Strava. Based on the suggested input - deduct if it should be included into the output. And if it looks like already a name - just return it. "+
-		"If it's a long message that contains something that looks like a name - return it.",
-		activity.Name, activity.ActivityType, activity.ElapsedTime, prompt, lang)
+	fullPrompt := fmt.Sprintf("Generate up to three, new-line separated names for the following activity: %s, of type %s. "+
+		"Language: %s. I want this to be used in names: '%s'. If you think that what I suggested can be a name - just return it. "+
+		"If it's a long message that contains something that looks like a name - return it in formatted way (e.g. 'evening run' should be 'Evening Run')."+
+		"In any other way return just new names, nothing else should be included in the response",
+		activity.Name, activity.ActivityType, lang, prompt)
 	return ai.sendRequest(fullPrompt)
 }
 
@@ -139,7 +141,7 @@ func (ai *OpenAI) sendStructuredRequest(prompt string) (string, error) {
 	requestBody, err := json.Marshal(AIRequest{
 		Model:          "Llama-3.3-70B-Instruct",
 		Messages:       messages,
-		ResponseFormat: responseFormat,
+		ResponseFormat: &responseFormat,
 	})
 	if err != nil {
 		return "", err
@@ -202,7 +204,7 @@ func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
 		},
 	}
 	requestBody, err := json.Marshal(AIRequest{
-		Model:    "Llama-3.3-70B-Instruct",
+		Model:    "Llama-4-Maverick-17B-128E-Instruct-FP8",
 		Messages: messages,
 	})
 	if err != nil {
@@ -217,6 +219,8 @@ func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+ai.ApiKey)
 
+	slog.Debug(fmt.Sprintf("%+v", req))
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -224,7 +228,8 @@ func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("OpenAI API returned non 200: %s", resp.Status)
+		utils.DebugResponse(resp)
+		return nil, fmt.Errorf("AI API returned non 200: %s", resp.Status)
 	}
 
 	defer func(Body io.ReadCloser) {

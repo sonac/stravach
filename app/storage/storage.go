@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"stravach/app/storage/models"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 type Store interface {
+	GetAllUsers() ([]*models.User, error)
 	Connect() error
 	GetActivityById(activityId int64) (*models.UserActivity, error)
 	CreateUserActivity(activity *models.UserActivity, userId int64) error
@@ -23,6 +25,25 @@ type Store interface {
 }
 
 var _ Store = (*SQLiteStore)(nil)
+
+// GetAllUsers returns all users from the database
+func (s *SQLiteStore) GetAllUsers() ([]*models.User, error) {
+	rows, err := s.DB.Query(`SELECT id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language, is_admin FROM users`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []*models.User
+	for rows.Next() {
+		u := &models.User{}
+		err := rows.Scan(&u.ID, &u.StravaId, &u.TelegramChatId, &u.Username, &u.Email, &u.StravaRefreshToken, &u.StravaAccessToken, &u.StravaAccessCode, &u.TokenExpiresAt, &u.Language, &u.IsAdmin)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
 
 type SQLiteStore struct {
 	DB *sql.DB
@@ -54,9 +75,15 @@ func (s *SQLiteStore) createTables() error {
 		      strava_access_token TEXT,
 		      strava_access_code TEXT,
 		      token_expires_at INTEGER,
-			  language TEXT
+			  language TEXT,
+			  is_admin INTEGER DEFAULT 0
 		    );
-		  `
+	  `
+	// Migration: Add is_admin column if it does not exist
+	_, err := s.DB.Exec("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;")
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return fmt.Errorf("failed to add is_admin column: %w", err)
+	}
 	userActivityTable := `
     CREATE TABLE IF NOT EXISTS user_activities (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,9 +101,14 @@ func (s *SQLiteStore) createTables() error {
     );
   `
 
-	_, err := s.DB.Exec(userTable)
+	_, err = s.DB.Exec(userTable)
 	if err != nil {
 		return err
+	}
+
+	_, err = s.DB.Exec("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;")
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return fmt.Errorf("failed to add is_admin column: %w", err)
 	}
 
 	_, err = s.DB.Exec(userActivityTable)
@@ -96,19 +128,20 @@ func (s *SQLiteStore) CreateUser(user *models.User) error {
 	slog.Info("CreateUser values", "strava_id", user.StravaId, "telegram_chat_id", user.TelegramChatId, "username", username, "email", user.Email, "strava_refresh_token", user.StravaRefreshToken, "strava_access_token", user.StravaAccessToken, "strava_access_code", user.StravaAccessCode, "token_expires_at", user.TokenExpiresAt, "language", user.Language)
 	query := `
 		INSERT INTO users (
-				strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language, is_admin
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(telegram_chat_id) DO UPDATE SET
-				telegram_chat_id = excluded.telegram_chat_id,
-				username = username,
-				email = excluded.email,
-				strava_refresh_token = excluded.strava_refresh_token,
-				strava_access_token = excluded.strava_access_token,
-				strava_access_code = excluded.strava_access_code,
-				token_expires_at = excluded.token_expires_at,
-				language = excluded.language
+			telegram_chat_id = excluded.telegram_chat_id,
+			username = excluded.username,
+			email = excluded.email,
+			strava_refresh_token = excluded.strava_refresh_token,
+			strava_access_token = excluded.strava_access_token,
+			strava_access_code = excluded.strava_access_code,
+			token_expires_at = excluded.token_expires_at,
+			language = excluded.language,
+			is_admin = excluded.is_admin
 	`
-	result, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, username, user.Email, user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt, "English")
+	result, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, username, user.Email, user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt, user.Language, user.IsAdmin)
 	if err != nil {
 		slog.Error("error while creating user", "err", err, "strava_id", user.StravaId, "telegram_chat_id", user.TelegramChatId, "username", username, "email", user.Email)
 		return err
@@ -119,8 +152,8 @@ func (s *SQLiteStore) CreateUser(user *models.User) error {
 
 func (s *SQLiteStore) GetUserByChatId(chatId int64) (*models.User, error) {
 	user := &models.User{}
-	query := `SELECT id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language FROM users WHERE telegram_chat_id = ?`
-	err := s.DB.QueryRow(query, chatId).Scan(&user.ID, &user.StravaId, &user.TelegramChatId, &user.Username, &user.Email, &user.StravaRefreshToken, &user.StravaAccessToken, &user.StravaAccessCode, &user.TokenExpiresAt, &user.Language)
+	query := `SELECT id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language, is_admin FROM users WHERE telegram_chat_id = ?`
+	err := s.DB.QueryRow(query, chatId).Scan(&user.ID, &user.StravaId, &user.TelegramChatId, &user.Username, &user.Email, &user.StravaRefreshToken, &user.StravaAccessToken, &user.StravaAccessCode, &user.TokenExpiresAt, &user.Language, &user.IsAdmin)
 	if err != nil {
 		slog.Error("error while fetching user chat by id", "id", chatId)
 		return nil, err
@@ -130,9 +163,9 @@ func (s *SQLiteStore) GetUserByChatId(chatId int64) (*models.User, error) {
 
 func (s *SQLiteStore) GetUserById(id int64) (*models.User, error) {
 	user := &models.User{}
-	query := `SELECT id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language FROM users WHERE id = ?`
+	query := `SELECT id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language, is_admin FROM users WHERE id = ?`
 	fmt.Println(id)
-	err := s.DB.QueryRow(query, id).Scan(&user.ID, &user.StravaId, &user.TelegramChatId, &user.Username, &user.Email, &user.StravaRefreshToken, &user.StravaAccessToken, &user.StravaAccessCode, &user.TokenExpiresAt, &user.Language)
+	err := s.DB.QueryRow(query, id).Scan(&user.ID, &user.StravaId, &user.TelegramChatId, &user.Username, &user.Email, &user.StravaRefreshToken, &user.StravaAccessToken, &user.StravaAccessCode, &user.TokenExpiresAt, &user.Language, &user.IsAdmin)
 	if err != nil {
 		slog.Error("error while fetching user by id", "id", id)
 		return nil, err
@@ -142,8 +175,8 @@ func (s *SQLiteStore) GetUserById(id int64) (*models.User, error) {
 
 func (s *SQLiteStore) GetUserByStravaId(id int64) (*models.User, error) {
 	user := &models.User{}
-	query := `SELECT id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language FROM users WHERE strava_id = ?`
-	err := s.DB.QueryRow(query, id).Scan(&user.ID, &user.StravaId, &user.TelegramChatId, &user.Username, &user.Email, &user.StravaRefreshToken, &user.StravaAccessToken, &user.StravaAccessCode, &user.TokenExpiresAt, &user.Language)
+	query := `SELECT id, strava_id, telegram_chat_id, username, email, strava_refresh_token, strava_access_token, strava_access_code, token_expires_at, language, is_admin FROM users WHERE strava_id = ?`
+	err := s.DB.QueryRow(query, id).Scan(&user.ID, &user.StravaId, &user.TelegramChatId, &user.Username, &user.Email, &user.StravaRefreshToken, &user.StravaAccessToken, &user.StravaAccessCode, &user.TokenExpiresAt, &user.Language, &user.IsAdmin)
 	if err != nil {
 		slog.Error("error while fetching user by strava id", "id", id)
 		return nil, err
@@ -168,11 +201,11 @@ func (s *SQLiteStore) UpdateUser(user *models.User) error {
 	query := `
     UPDATE users
     SET strava_id = ?, telegram_chat_id = ?, username = ?, email = ?,
-      strava_refresh_token = ?, strava_access_token = ?, strava_access_code = ?, token_expires_at = ?, language = ?
+      strava_refresh_token = ?, strava_access_token = ?, strava_access_code = ?, token_expires_at = ?, language = ?, is_admin = ?
     WHERE id = ?
   `
 	_, err := s.DB.Exec(query, user.StravaId, user.TelegramChatId, user.Username, user.Email,
-		user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt, user.Language, user.ID)
+		user.StravaRefreshToken, user.StravaAccessToken, user.StravaAccessCode, user.TokenExpiresAt, user.Language, user.IsAdmin, user.ID)
 	return err
 }
 
