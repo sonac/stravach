@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -27,6 +28,7 @@ type HttpHandler struct {
 	DB                storage.Store
 	AI                *openai.OpenAI
 	ActivitiesChannel chan tg.ActivityForUpdate
+	BroadcastChannel  chan tg.BroadcastMessage
 	JWT               *utils.JWT
 }
 
@@ -47,6 +49,7 @@ type TgPayload struct {
 }
 
 func (h *HttpHandler) Init() {
+	h.BroadcastChannel = make(chan tg.BroadcastMessage, 10) // buffered, like ActivitiesChannel
 	h.StravaToken = os.Getenv("STRAVA_CHALLENGE_TOKEN")
 	h.Port = os.Getenv("PORT")
 	h.Url = os.Getenv("URL")
@@ -65,6 +68,92 @@ func (h *HttpHandler) Init() {
 
 // activitiesPageHandler is deprecated. All frontend routing is now handled by React SPA.
 // func (h *HttpHandler) activitiesPageHandler(w http.ResponseWriter, r *http.Request) {}
+
+// getTelegramClient returns the Telegram client from the handler (if available)
+func (h *HttpHandler) getTelegramClient() (*tg.Telegram, bool) {
+	if h.TgApiKey == "" {
+		return nil, false
+	}
+	tgClient, err := tg.NewTelegramClient(h.TgApiKey)
+	if err != nil {
+		return nil, false
+	}
+	return tgClient, true
+}
+
+// broadcastHandler allows an admin to send a message to all users via Telegram
+func (h *HttpHandler) broadcastHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(`{"error": "POST required"}`))
+		return
+	}
+	cookie, err := r.Cookie("auth_token")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": "missing auth_token"}`))
+		return
+	}
+	userIdPtr, err := h.JWT.GetChatIdFromToken(cookie.Value)
+	if err != nil || userIdPtr == nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": "invalid token"}`))
+		return
+	}
+	usr, err := h.DB.GetUserById(*userIdPtr)
+	if err != nil || usr == nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": "user not found"}`))
+		return
+	}
+	if !usr.IsAdmin {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error": "admin only"}`))
+		return
+	}
+	var req struct {
+		Message string `json:"message"`
+	}
+	err = json.NewDecoder(r.Body).Decode(&req)
+	if err != nil || req.Message == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": "invalid message"}`))
+		return
+	}
+
+	if h.BroadcastChannel == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "broadcast channel unavailable"}`))
+		return
+	}
+	h.BroadcastChannel <- tg.BroadcastMessage{Text: req.Message}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"sent": "queued"}`))
+}
+
+// userInfoHandler returns the current user's info as JSON, including is_admin
+func (h *HttpHandler) userInfoHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("auth_token")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": "missing auth_token"}`))
+		return
+	}
+	userIdPtr, err := h.JWT.GetChatIdFromToken(cookie.Value)
+	if err != nil || userIdPtr == nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": "invalid token"}`))
+		return
+	}
+	usr, err := h.DB.GetUserById(*userIdPtr)
+	if err != nil || usr == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "user not found"}`))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(usr)
+}
 
 // refreshLast10ActivitiesHandler refreshes the last 10 activities from Strava for a user and saves them to the DB.
 func (h *HttpHandler) refreshLast10ActivitiesHandler(w http.ResponseWriter, r *http.Request) {
@@ -216,6 +305,7 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if isLocal {
+		slog.Info("Local dev login")
 		usr, err := h.DB.GetUserById(1)
 		if err != nil || usr == nil {
 			slog.Error("Local dev login failed: user 1 not found", "err", err)
@@ -466,6 +556,17 @@ func (h *HttpHandler) processActivity(activityId int64, user *models.User) error
 }
 
 func (h *HttpHandler) Start() {
+	// Initialize and start Telegram client
+	if h.TgApiKey != "" {
+		tgClient, err := tg.NewTelegramClientWithChannels(h.TgApiKey, h.ActivitiesChannel, h.BroadcastChannel)
+		if err != nil {
+			slog.Error("Failed to start Telegram client", "err", err)
+		} else {
+			go tgClient.Start(context.Background())
+		}
+	}
+	http.HandleFunc("/api/broadcast", h.broadcastHandler)
+	http.HandleFunc("/api/user-info", h.userInfoHandler)
 	// API routes
 	http.HandleFunc("/api/activities/", h.getActivities)
 	http.HandleFunc("/api/activities-refresh-last-10/", h.refreshLast10ActivitiesHandler) // NEW

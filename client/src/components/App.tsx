@@ -4,10 +4,18 @@ import { Button } from "./ui/button.tsx";
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import ActivitiesPage from "../pages/ActivitiesPage";
 import UserProfilePage from "../pages/UserProfilePage";
+import BroadcastPage from "../pages/BroadcastPage";
+
+// TODO: Replace with real admin check or context
+function useIsAdmin() {
+  // This should check actual user context or role
+  // For now, returns true for demonstration
+  return true;
+}
 
 function onTelegramAuth(
   user: TelegramUser,
-  navigate: ReturnType<typeof useNavigate>,
+  navigate: ReturnType<typeof useNavigate>
 ) {
   const payload = {
     user: {
@@ -81,7 +89,7 @@ const HomePage = () => {
                       username: "devuser",
                     },
                   };
-                  await fetch("/tg-auth", {
+                  await fetch("/api/tg-auth", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload),
@@ -204,6 +212,16 @@ function App() {
               Activities
             </Link>
           </li>
+          {useIsAdmin() && (
+            <li>
+              <Link
+                to="/broadcast"
+                style={{ color: "white", textDecoration: "none" }}
+              >
+                Broadcast
+              </Link>
+            </li>
+          )}
         </ul>
       </nav>
 
@@ -211,6 +229,9 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/activities/:userId" element={<ActivitiesPage />} />
         <Route path="/user/:userId" element={<UserProfilePage />} />
+        {useIsAdmin() && (
+          <Route path="/broadcast" element={<BroadcastPage />} />
+        )}
       </Routes>
     </div>
   );
