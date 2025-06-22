@@ -51,8 +51,11 @@ func init() {
 	}
 
 	activitiesChannel := make(chan tg.ActivityForUpdate)
+	broadCastChannel := make(chan tg.BroadcastMessage)
 	srv.ActivitiesChannel = activitiesChannel
+	srv.BroadcastChannel = broadCastChannel
 	telegram.ActivitiesChannel = activitiesChannel
+	telegram.BroadcastChannel = broadCastChannel
 
 	srv.Init()
 }

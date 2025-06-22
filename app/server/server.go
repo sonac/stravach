@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -49,7 +48,6 @@ type TgPayload struct {
 }
 
 func (h *HttpHandler) Init() {
-	h.BroadcastChannel = make(chan tg.BroadcastMessage, 10) // buffered, like ActivitiesChannel
 	h.StravaToken = os.Getenv("STRAVA_CHALLENGE_TOKEN")
 	h.Port = os.Getenv("PORT")
 	h.Url = os.Getenv("URL")
@@ -90,6 +88,7 @@ func (h *HttpHandler) broadcastHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	cookie, err := r.Cookie("auth_token")
 	if err != nil {
+		slog.Debug(fmt.Sprintf("error while getting cookie: %s, request is: %+v", err, r))
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"error": "missing auth_token"}`))
 		return
@@ -556,15 +555,6 @@ func (h *HttpHandler) processActivity(activityId int64, user *models.User) error
 }
 
 func (h *HttpHandler) Start() {
-	// Initialize and start Telegram client
-	if h.TgApiKey != "" {
-		tgClient, err := tg.NewTelegramClientWithChannels(h.TgApiKey, h.ActivitiesChannel, h.BroadcastChannel)
-		if err != nil {
-			slog.Error("Failed to start Telegram client", "err", err)
-		} else {
-			go tgClient.Start(context.Background())
-		}
-	}
 	http.HandleFunc("/api/broadcast", h.broadcastHandler)
 	http.HandleFunc("/api/user-info", h.userInfoHandler)
 	// API routes
