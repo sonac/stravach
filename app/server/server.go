@@ -318,10 +318,13 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.SetCookie(w, &http.Cookie{
-			Name:    "auth_token",
-			Value:   token.Value,
-			Expires: token.ExpiresAt,
-			Path:    "/",
+			Name:     "auth_token",
+			Value:    token.Value,
+			Expires:  token.ExpiresAt,
+			Path:     "/",
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
 		})
 		w.WriteHeader(http.StatusOK)
 		return
@@ -356,10 +359,14 @@ func (h *HttpHandler) tgAuthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:    "auth_token",
-		Value:   token.Value,
-		Expires: token.ExpiresAt,
-		Path:    "/",
+		Name:     "auth_token",
+		Value:    token.Value,
+		Expires:  token.ExpiresAt,
+		Path:     "/",
+		Domain:   "stravabot.pro",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode,
 	})
 
 	w.WriteHeader(http.StatusOK)
