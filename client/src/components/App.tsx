@@ -15,7 +15,7 @@ function useIsAdmin() {
 
 function onTelegramAuth(
   user: TelegramUser,
-  navigate: ReturnType<typeof useNavigate>
+  navigate: ReturnType<typeof useNavigate>,
 ) {
   const payload = {
     user: {
@@ -26,7 +26,7 @@ function onTelegramAuth(
     },
   };
 
-  fetch("/tg-auth", {
+  fetch("/api/tg-auth", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
