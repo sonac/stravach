@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"regexp"
 	"stravach/app/openai"
 	"stravach/app/storage"
@@ -57,8 +56,8 @@ type DBStore interface {
 	GetAllUsers() ([]*dbModels.User, error)
 }
 type AI interface {
-	GenerateBetterNames(activity dbModels.UserActivity, lang string) ([]string, error)
-	GenerateBetterNamesWithCustomizedPrompt(activity dbModels.UserActivity, lang, prompt string) ([]string, error)
+	GenerateBetterNames(activity dbModels.UserActivity, lang string) (string, error)
+	GenerateBetterNamesWithCustomizedPrompt(activity dbModels.UserActivity, lang, prompt string) (string, error)
 	CheckIfItsAName(msg string) (bool, error)
 	FormatActivityName(name string) (string, error)
 }
@@ -88,12 +87,6 @@ func NewTelegramClient(apiKey string) (*Telegram, error) {
 	return newTelegramClientInternal(apiKey, nil, nil)
 }
 
-// NewTelegramClientWithChannels creates a Telegram client using provided channels for activities and broadcasts.
-func NewTelegramClientWithChannels(apiKey string, activities chan ActivityForUpdate, broadcasts chan BroadcastMessage) (*Telegram, error) {
-	return newTelegramClientInternal(apiKey, activities, broadcasts)
-}
-
-// internal helper to centralize Telegram construction
 func newTelegramClientInternal(apiKey string, activities chan ActivityForUpdate, broadcasts chan BroadcastMessage) (*Telegram, error) {
 	db := &storage.SQLiteStore{}
 	err := db.Connect()
@@ -197,99 +190,6 @@ func (tg *Telegram) SendNotification(chatID int64, messages ...string) {
 	}
 }
 
-func (tg *Telegram) startHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	slog.Debug("received start command", "chatID", update.Message.Chat.ID)
-	url := os.Getenv("URL")
-	if url == "" {
-		slog.Error("URL environment variable not set. Cannot generate auth link.")
-		tg.SendMessage(ctx, update.Message.Chat.ID, "Server configuration error. Please contact admin.")
-		return
-	}
-	chatID := update.Message.Chat.ID
-	userExists, err := tg.DB.IsUserExistsByChatId(chatID)
-	if err != nil {
-		slog.Error("failed to check if user exists", "err", err, "chatID", chatID)
-		tg.SendMessage(ctx, chatID, defaultBotErrorMessage)
-		return
-	}
-	if !userExists {
-		usr := &dbModels.User{TelegramChatId: chatID, StravaId: nil}
-		err = tg.DB.CreateUser(usr)
-		if err != nil {
-			slog.Error("failed to create user", "err", err, "chatID", chatID)
-			tg.SendMessage(ctx, chatID, defaultBotErrorMessage)
-			return
-		}
-		slog.Info("New user created", "chatID", chatID)
-	}
-
-	link := fmt.Sprintf("%s/api/auth/%d", url, chatID)
-	escapedLink := bot.EscapeMarkdownUnescaped(link)
-	replyMsg := fmt.Sprintf(authLinkMessage, escapedLink)
-	slog.Info("Sending auth link", "link", link, "chatID", chatID)
-	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:    chatID,
-		Text:      replyMsg,
-		ParseMode: models.ParseModeMarkdown,
-	})
-	if err != nil {
-		slog.Error("failed to send auth message", "err", err, "chatID", chatID)
-	}
-}
-
-func (tg *Telegram) refreshActivitiesHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.Message.Chat.ID
-	usr, err := tg.DB.GetUserByChatId(chatID)
-	if err != nil {
-		slog.Error("failed to get user for refresh activities", "err", err, "chatID", chatID)
-		tg.SendMessage(ctx, chatID, defaultBotErrorMessage)
-		return
-	}
-	err = tg.refreshActivitiesForUser(usr)
-	if err != nil {
-		slog.Error("error while refreshing activities for user", "err", err, "userID", usr.ID)
-		tg.SendMessage(ctx, chatID, "Failed to refresh activities. Please try again.")
-		return
-	}
-	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: usr.TelegramChatId,
-		Text:   activitiesRefreshedMessage,
-	})
-	if err != nil {
-		slog.Error("failed to send activities refreshed message", "err", err, "chatID", chatID)
-	}
-}
-
-func (tg *Telegram) setLanguageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.Message.Chat.ID
-	usr, err := tg.DB.GetUserByChatId(chatID)
-	if err != nil {
-		slog.Error("failed to get user for set language", "err", err, "chatID", chatID)
-		tg.SendMessage(ctx, chatID, defaultBotErrorMessage)
-		return
-	}
-	msgArr := strings.Split(update.Message.Text, " ")
-	if len(msgArr) != 2 {
-		tg.SendMessage(ctx, chatID, setLanguageUsageMessage)
-		return
-	}
-	language := msgArr[1]
-	usr.Language = language
-	err = tg.DB.UpdateUser(usr)
-	if err != nil {
-		slog.Error("failed to update user language", "err", err, "userID", usr.ID, "language", language)
-		tg.SendMessage(ctx, chatID, defaultBotErrorMessage)
-		return
-	}
-	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: usr.TelegramChatId,
-		Text:   fmt.Sprintf(languageSetSuccessMessage, language),
-	})
-	if err != nil {
-		slog.Error("failed to send language set confirmation", "err", err, "chatID", chatID)
-	}
-}
-
 func (tg *Telegram) messageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID := update.Message.Chat.ID
 	activityID, ok := tg.LastActivity[chatID]
@@ -339,12 +239,14 @@ func (tg *Telegram) messageHandler(ctx context.Context, b *bot.Bot, update *mode
 		tg.SendMessage(ctx, chatID, defaultBotErrorMessage)
 		return
 	}
-	names, err := tg.AI.GenerateBetterNamesWithCustomizedPrompt(*activity, usr.Language, customPrompt)
+	aiResp, err := tg.AI.GenerateBetterNamesWithCustomizedPrompt(*activity, usr.Language, customPrompt)
 	if err != nil {
 		slog.Error("error while generating names with custom prompt", "err", err, "activityID", activity.ID)
 		tg.SendMessage(ctx, chatID, fmt.Sprintf(customPromptFailedMessage, activity.Name))
 		return
 	}
+
+	names := strings.Split(aiResp, "/n")
 
 	slog.Info("Generated names with custom prompt", "activityID", activity.ID, "names", names)
 	tg.SendMessage(ctx, chatID, fmt.Sprintf(customPromptSuccessMessage, activity.Name))
@@ -421,61 +323,22 @@ func (tg *Telegram) updateActivity(activity *ActivityForUpdate) {
 		return
 	}
 
-	names, err := tg.AI.GenerateBetterNames(activity.Activity, usr.Language)
+	aiResp, err := tg.AI.GenerateBetterNames(activity.Activity, usr.Language)
 	if err != nil {
 		slog.Error("error while generating names", "err", err)
 		return
 	}
+	names := strings.Split(aiResp, "\n")
 	tg.NameOptions[activity.ChatId][activity.Activity.ID] = names
 	tg.LastActivity[activity.ChatId] = activity.Activity.ID
 
 	slog.Info("Generated names for activity", "activityID", activity.Activity.ID, "names", names)
 	tg.SendMessage(context.Background(), activity.ChatId, fmt.Sprintf(generatingBetterNamesMessage, activity.Activity.Name, activity.Activity.ID))
 
-	var listText string
-	maxOptions := 9
-	for i, name := range names {
-		listText += fmt.Sprintf("%d. %s\n", i+1, name)
-		if i == maxOptions-1 {
-			break
-		}
-	}
-	listText += "0. 🔄 Regenerate\nC. ✏️ Enter custom prompt"
-
-	msgText := "*Select a number with new name:*\n\n" + listText
-
+	msgText := makeNamesListMessage(aiResp)
 	tg.SendMessage(context.Background(), activity.ChatId, msgText)
 
-	if len(names) < maxOptions {
-		maxOptions = len(names)
-	}
-	var inlineKeyboard [][]models.InlineKeyboardButton
-	var row []models.InlineKeyboardButton
-	for i := 0; i < maxOptions; i++ {
-		button := models.InlineKeyboardButton{
-			Text:         fmt.Sprintf("%d", i+1),
-			CallbackData: fmt.Sprintf("%s:%d:%d", callbackPrefixActivity, activity.Activity.ID, i+1),
-		}
-		row = append(row, button)
-		if len(row) == 3 {
-			inlineKeyboard = append(inlineKeyboard, row)
-			row = []models.InlineKeyboardButton{}
-		}
-	}
-	if len(row) > 0 {
-		inlineKeyboard = append(inlineKeyboard, row)
-	}
-	finalRow := []models.InlineKeyboardButton{
-		{
-			Text:         "🔄 Regenerate",
-			CallbackData: fmt.Sprintf("%s:%d:0", callbackPrefixActivity, activity.Activity.ID),
-		},
-		{
-			Text:         "✏️ Custom",
-			CallbackData: fmt.Sprintf("%s:%d:C", callbackPrefixActivity, activity.Activity.ID),
-		},
-	}
-	inlineKeyboard = append(inlineKeyboard, finalRow)
+	inlineKeyboard := makeInlineKeyboardForNames(activity.Activity.ID, aiResp)
 
 	msg := &bot.SendMessageParams{
 		ChatID: activity.ChatId,
@@ -603,7 +466,7 @@ func (tg *Telegram) handleActivitySelection(ctx context.Context, chatID int64, a
 	}
 
 	originalName := activity.Name
-	activity.Name = tg.cleanName(newName)
+	activity.Name = cleanName(newName)
 	activity.IsUpdated = true
 
 	err = tg.refreshAuthForUser(usr)
@@ -686,57 +549,8 @@ func (tg *Telegram) refreshAuthForUser(usr *dbModels.User) error {
 	return tg.DB.UpdateUser(usr)
 }
 
-func (tg *Telegram) testPromptHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.Message.Chat.ID
-	user, err := tg.DB.GetUserByChatId(chatID)
-	if err != nil {
-		tg.SendMessage(ctx, chatID, "User not found. Please authenticate first.")
-		return
-	}
-
-	// Parse: /test_prompt <type> <prompt>
-	text := strings.TrimSpace(update.Message.Text)
-	parts := strings.Fields(text)
-	if len(parts) < 3 {
-		tg.SendMessage(ctx, chatID, "Usage: /test_prompt <type> <prompt>")
-		return
-	}
-	activityType := strings.ToLower(parts[1])
-	prompt := strings.TrimPrefix(text, parts[0]+" "+parts[1])
-	prompt = strings.TrimSpace(prompt)
-	// If quoted, remove quotes
-	if len(prompt) >= 2 && prompt[0] == '"' && prompt[len(prompt)-1] == '"' {
-		prompt = prompt[1 : len(prompt)-1]
-	}
-
-	// Create a temporary UserActivity (fill only required fields)
-	activity := dbModels.UserActivity{
-		ActivityType: activityType,
-		Name:         "default",
-		UserID:       user.ID,
-	}
-
-	names, err := tg.AI.GenerateBetterNamesWithCustomizedPrompt(activity, user.Language, prompt)
-	if err != nil {
-		slog.Error("Error while generating names", "err", err)
-		tg.SendMessage(ctx, chatID, "Failed to generate names.")
-		return
-	}
-
-	// Send as plain text
-	if len(names) == 0 {
-		tg.SendMessage(ctx, chatID, "No names generated.")
-		return
-	}
-	msg := "Generated name variants:\n"
-	for i, n := range names {
-		msg += fmt.Sprintf("%d. %s\n", i+1, n)
-	}
-	tg.SendMessage(ctx, chatID, msg)
-}
-
 // cleanName removes leading/trailing spaces and special characters from the activity name.
-func (tg *Telegram) cleanName(name string) string {
+func cleanName(name string) string {
 	name = strings.TrimSpace(name)
 
 	re := regexp.MustCompile(`[^a-zA-Z0-9\s\-_.,!?'"()&]+`)

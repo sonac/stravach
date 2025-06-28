@@ -13,67 +13,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// TestCleanName tests the cleanName method of the Telegram struct.
-func TestCleanName(t *testing.T) {
-	tgInstance := &Telegram{} // cleanName doesn't depend on other fields of Telegram struct
-
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "simple name",
-			input: "My Awesome Ride",
-			want:  "My Awesome Ride",
-		},
-		{
-			name:  "name with leading/trailing spaces",
-			input: "  My Awesome Ride  ",
-			want:  "My Awesome Ride",
-		},
-		{
-			name:  "name with special characters",
-			input: "My Ride!@#$%^&*()_+-={}|[]\\:\";'<>?,./",
-			want:  "My Ride!&()_-\"'?,.",
-		},
-		{
-			name:  "name with multiple spaces between words",
-			input: "My    Awesome   Ride",
-			want:  "My Awesome Ride",
-		},
-		{
-			name:  "name with numbers",
-			input: "Ride 123",
-			want:  "Ride 123",
-		},
-		{
-			name:  "empty string",
-			input: "",
-			want:  "",
-		},
-		{
-			name:  "only special characters",
-			input: "!@#$%^&*()",
-			want:  "!&()",
-		},
-		{
-			name:  "name with hyphens and underscores",
-			input: "My_Activity-Ride",
-			want:  "My_Activity-Ride",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tgInstance.cleanName(tt.input)
-			if got != tt.want {
-				t.Errorf("Telegram.cleanName() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestHandleCallbackQuery_NumberSelection(t *testing.T) {
 	mbot := &mocks.BotSender{}
 	mdb := &mocks.DBStore{}

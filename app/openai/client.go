@@ -18,6 +18,7 @@ type AIRequest struct {
 	Model          string          `json:"model"`
 	Messages       []Message       `json:"messages"`
 	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
+	Temperature    float64         `json:"temperature,omitempty"`
 }
 
 type Message struct {
@@ -65,17 +66,6 @@ type OpenAI struct {
 	ApiKey string
 }
 
-// IsActivityNameSuggestion returns true if the message contains suggestions for activity names, using OpenAI
-func (ai *OpenAI) IsActivityNameSuggestion(message string) (bool, error) {
-	prompt := "Does the following message contain suggestions for names for activities? Answer only 'yes' or 'no'. Message: " + message
-	resp, err := ai.sendRequest(prompt)
-	if err != nil || len(resp) == 0 {
-		return false, err
-	}
-	answer := strings.ToLower(strings.TrimSpace(resp[0]))
-	return strings.HasPrefix(answer, "yes"), nil
-}
-
 func NewClient() *OpenAI {
 	apiKey := os.Getenv("LLAMA_API_KEY")
 	return &OpenAI{
@@ -83,13 +73,25 @@ func NewClient() *OpenAI {
 	}
 }
 
-func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity, language string) ([]string, error) {
-	prompt := fmt.Sprintf("Generate a several, new-line separated funny names for the following activity: %s, of type %s, duration: %d seconds in %s language. This is for my Strava.",
-		activity.Name, activity.ActivityType, activity.ElapsedTime, language)
+// IsActivityNameSuggestion returns true if the message contains suggestions for activity names, using OpenAI
+func (ai *OpenAI) IsActivityNameSuggestion(message string) (bool, error) {
+	prompt := "Does the following message contain suggestions for names for activities? Answer only 'yes' or 'no'. Message: " + message
+	resp, err := ai.sendRequest(prompt)
+	if err != nil || resp == "" {
+		return false, err
+	}
+	answer := strings.ToLower(strings.TrimSpace(strings.Split(resp, "\n")[0]))
+	return strings.HasPrefix(answer, "yes"), nil
+}
+
+func (ai *OpenAI) GenerateBetterNames(activity models.UserActivity, language string) (string, error) {
+	prompt := fmt.Sprintf("Generate a several, new-line separated funny names for the following activity: %s, of type %s, in %s language. "+
+		"This is for my Strava. Try to be original. Return ONLY names",
+		activity.Name, activity.ActivityType, language)
 	return ai.sendRequest(prompt)
 }
 
-func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, lang, prompt string) ([]string, error) {
+func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, lang, prompt string) (string, error) {
 	fullPrompt := fmt.Sprintf("Generate up to three, new-line separated names for the following activity: %s, of type %s. "+
 		"Language: %s. I want this to be used in names: '%s'. If you think that what I suggested can be a name - just return it. "+
 		"If it's a long message that contains something that looks like a name - return it in formatted way (e.g. 'evening run' should be 'Evening Run')."+
@@ -101,10 +103,10 @@ func (ai *OpenAI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserAc
 func (ai *OpenAI) FormatActivityName(name string) (string, error) {
 	prompt := fmt.Sprintf("Format name for a Strava acitvity, return only new name: %s", name)
 	res, err := ai.sendRequest(prompt)
-	if err != nil || len(res) == 0 {
+	if err != nil || res == "" {
 		return "", err
 	}
-	return res[0], nil
+	return strings.Split(res, "\n")[0], nil
 }
 
 func (ai *OpenAI) CheckIfItsAName(msg string) (bool, error) {
@@ -120,10 +122,6 @@ func (ai *OpenAI) CheckIfItsAName(msg string) (bool, error) {
 func (ai *OpenAI) sendStructuredRequest(prompt string) (string, error) {
 	slog.Debug(prompt)
 	messages := []Message{
-		{
-			Role:    "system",
-			Content: "You are a helpful assistant",
-		},
 		{
 			Role:    "user",
 			Content: prompt,
@@ -191,29 +189,26 @@ func (ai *OpenAI) sendStructuredRequest(prompt string) (string, error) {
 	return metaAIResponse.CompletionMessage.Content.Text, nil
 }
 
-func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
+func (ai *OpenAI) sendRequest(prompt string) (string, error) {
 	slog.Debug(prompt)
 	messages := []Message{
-		{
-			Role:    "system",
-			Content: "You are a helpful assistant that generates witty names for activities.",
-		},
 		{
 			Role:    "user",
 			Content: prompt,
 		},
 	}
 	requestBody, err := json.Marshal(AIRequest{
-		Model:    "Llama-4-Maverick-17B-128E-Instruct-FP8",
-		Messages: messages,
+		Model:       "Llama-4-Maverick-17B-128E-Instruct-FP8",
+		Messages:    messages,
+		Temperature: 0.95,
 	})
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	req, err := http.NewRequest("POST", "https://api.llama.com/v1/chat/completions", bytes.NewBuffer(requestBody))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -224,12 +219,12 @@ func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if resp.StatusCode != 200 {
 		utils.DebugResponse(resp)
-		return nil, fmt.Errorf("AI API returned non 200: %s", resp.Status)
+		return "", fmt.Errorf("AI API returned non 200: %s", resp.Status)
 	}
 
 	defer func(Body io.ReadCloser) {
@@ -240,7 +235,7 @@ func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, nil
+		return "", nil
 	}
 
 	slog.Debug(string(body))
@@ -248,13 +243,12 @@ func (ai *OpenAI) sendRequest(prompt string) ([]string, error) {
 	var metaAIResponse MetaResponse
 	err = json.Unmarshal(body, &metaAIResponse)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if metaAIResponse.CompletionMessage.Content.Text == "" {
-		return nil, fmt.Errorf("no respnse from OpenAI")
+		return "", fmt.Errorf("no respnse from OpenAI")
 	}
 
-	names := strings.Split(metaAIResponse.CompletionMessage.Content.Text, "\n")
-	return names, nil
+	return metaAIResponse.CompletionMessage.Content.Text, nil
 }

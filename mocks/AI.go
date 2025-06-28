@@ -62,20 +62,18 @@ func (_m *AI) FormatActivityName(name string) (string, error) {
 }
 
 // GenerateBetterNames provides a mock function with given fields: activity, lang
-func (_m *AI) GenerateBetterNames(activity models.UserActivity, lang string) ([]string, error) {
+func (_m *AI) GenerateBetterNames(activity models.UserActivity, lang string) (string, error) {
 	ret := _m.Called(activity, lang)
 
-	var r0 []string
+	var r0 string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(models.UserActivity, string) ([]string, error)); ok {
+	if rf, ok := ret.Get(0).(func(models.UserActivity, string) (string, error)); ok {
 		return rf(activity, lang)
 	}
-	if rf, ok := ret.Get(0).(func(models.UserActivity, string) []string); ok {
+	if rf, ok := ret.Get(0).(func(models.UserActivity, string) string); ok {
 		r0 = rf(activity, lang)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]string)
-		}
+		r0 = ret.Get(0).(string)
 	}
 
 	if rf, ok := ret.Get(1).(func(models.UserActivity, string) error); ok {
@@ -88,20 +86,18 @@ func (_m *AI) GenerateBetterNames(activity models.UserActivity, lang string) ([]
 }
 
 // GenerateBetterNamesWithCustomizedPrompt provides a mock function with given fields: activity, lang, prompt
-func (_m *AI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, lang string, prompt string) ([]string, error) {
+func (_m *AI) GenerateBetterNamesWithCustomizedPrompt(activity models.UserActivity, lang string, prompt string) (string, error) {
 	ret := _m.Called(activity, lang, prompt)
 
-	var r0 []string
+	var r0 string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(models.UserActivity, string, string) ([]string, error)); ok {
+	if rf, ok := ret.Get(0).(func(models.UserActivity, string, string) (string, error)); ok {
 		return rf(activity, lang, prompt)
 	}
-	if rf, ok := ret.Get(0).(func(models.UserActivity, string, string) []string); ok {
+	if rf, ok := ret.Get(0).(func(models.UserActivity, string, string) string); ok {
 		r0 = rf(activity, lang, prompt)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]string)
-		}
+		r0 = ret.Get(0).(string)
 	}
 
 	if rf, ok := ret.Get(1).(func(models.UserActivity, string, string) error); ok {
